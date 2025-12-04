@@ -1,0 +1,6 @@
+[submodule "benchmark/llm/kbench/kernelbench"]
+	path = benchmark/llm/kbench/kernelbench
+	url = https://github.com/ScalingIntelligence/KernelBench.git
+[submodule "benchmark/llm/rkbench/robust_kbench"]
+	path = benchmark/llm/rkbench/robust_kbench
+	url = https://github.com/SakanaAI/robust-kbench.git

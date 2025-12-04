@@ -1,0 +1,26 @@
+[project]
+name = "cugedit"
+version = "0.0.0"
+description = "CuGEdit"
+readme = "readme.md"
+authors = [{ name = "yuxuan-z", email = "yuxuan-z19@qq.com" }]
+requires-python = ">=3.10"
+dependencies = [
+    "nvidia-ml-py>=13.580.82",
+    "tiktoken>=0.12.0",
+    "xmltodict>=1.0.2",
+]
+
+[project.optional-dependencies]
+
+[build-system]
+requires = ["uv_build>=0.9.14,<0.10.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "black>=25.11.0",
+    "clang-format>=21.1.7",
+    "isort>=7.0.0",
+    "pre-commit>=4.5.0",
+]
