@@ -5,22 +5,23 @@ from pathlib import Path
 from pprint import pp
 from typing import Any
 
-from cugedit.config import *
-from cugedit.utils import pick_idle_gpu
 from robust_kbench.robust_kbench.primitives.evaluate import (
     correct_cuda_kernel,
     eval_cuda_kernel,
     eval_torch_runtime,
 )
 
+from cugedit.config import *
+from cugedit.utils import pick_idle_gpu
+
 
 @dataclass
 class RKbenchResult(Result):
-    speedup_naive: float = -1
-    speedup_compile: float = -1
-    runtime_torch_naive: float = -1
-    runtime_torch_compile: float = -1
-    runtime_cuda: float = -1
+    speedup_naive: float = INVALID_FLOAT
+    speedup_compile: float = INVALID_FLOAT
+    runtime_torch_naive: float = INVALID_FLOAT
+    runtime_torch_compile: float = INVALID_FLOAT
+    runtime_cuda: float = INVALID_FLOAT
 
 
 EVALUATOR = Path(__file__).parent / "robust_kbench/run_kernel.py"

@@ -1,5 +1,3 @@
-# (AI) Compilers and DSLs
-
-## PolyBench (poly)
+# AI Compilers and DSLs
 
 ## TritonBench (triton)

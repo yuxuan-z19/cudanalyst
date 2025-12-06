@@ -2,12 +2,15 @@ import re
 from dataclasses import asdict, dataclass, field, is_dataclass
 from functools import wraps
 
+INVALID_INT = 0
+INVALID_FLOAT = float("-inf")
+
 
 @dataclass
 class Result:
-    combined_score: float = field(default=float("-inf"))
-    error: str = field(default="")
-    report: str = field(default="")
+    combined_score: float = INVALID_FLOAT
+    error: str = None
+    report: str = None
 
 
 def return_asdict(func):
