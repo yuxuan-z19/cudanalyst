@@ -1,1 +1,1 @@
-# CuBench: A collection of CUDA benchmarks
+# A collection of CUDA benchmarks

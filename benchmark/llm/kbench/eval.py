@@ -1,13 +1,10 @@
 import os
-import sys
-import tempfile
+import re
+from dataclasses import dataclass, field
 from pathlib import Path
 from pprint import pp
 
 import torch
-from cugedit.analyst import Analyst
-from cugedit.config import *
-from cugedit.utils import pick_idle_gpu
 from kernelbench.src.eval import (
     KernelExecResult,
     eval_kernel_against_ref,
@@ -15,6 +12,9 @@ from kernelbench.src.eval import (
     load_custom_model,
     load_original_model_and_inputs,
 )
+
+from cugedit.result import Result, return_asdict
+from cugedit.utils import pick_idle_gpu
 
 
 @dataclass
@@ -33,6 +33,8 @@ NO_CUDA_MODULE_ERROR = (
     "Error: Missing `gen_inline_cuda()` loader. "
     "This function must construct and return a CUDA module using torch.utils.cpp_extension.load_inline()."
 )
+
+HACKED_ERROR_MESSAGE = "Error: Use only custom CUDA kernel code. Do not use official libraries like cuBLAS, ATen, or any other high-level APIs."
 
 
 def check_cuda_module(code: str) -> KbenchResult:
@@ -167,14 +169,6 @@ if __name__ == "__main__":
 """
 
 
-def analyze(problem: str, code: str, valid: bool = True):
-    with tempfile.TemporaryDirectory() as tmpdir:
-        tmp_path = Path(tmpdir)
-        workload_file = tmp_path / "workload.py"
-        workload_file.write_text(problem + "\n" + code + "\n" + WORKLOAD_TEMPLATE)
-        return Analyst.analyze([sys.executable, workload_file], tmp_path, valid)
-
-
 @return_asdict
 def evaluate(program_path: os.PathLike, problem_path: os.PathLike, perf: bool = False):
     try:
@@ -200,17 +194,14 @@ def evaluate(program_path: os.PathLike, problem_path: os.PathLike, perf: bool = 
                 num_perf_trials=32,
             )
             if error := check_error(res):
-                report = analyze(problem, code, False) if perf and res.compiled else ""
-                return KbenchResult(error=f"[Error @ {name}] " + error, report=report)
+                return KbenchResult(error=f"[Error @ {name}] " + error)
             result[name] = res
 
         if err := is_kernel_hacked(problem, custom_code):
             return err
 
-        report = analyze(problem, code) if perf else ""
         return KbenchResult(
             combined_score=result["base"].runtime / result["custom"].runtime,
-            report=report,
             base_runtime_stats=result["base"].runtime_stats,
             custom_runtime_stats=result["custom"].runtime_stats,
         )

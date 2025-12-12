@@ -1,6 +1,8 @@
 import os
+import re
 import shutil
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 from pprint import pp
 from typing import Any
@@ -11,17 +13,17 @@ from robust_kbench.robust_kbench.primitives.evaluate import (
     eval_torch_runtime,
 )
 
-from cugedit.config import *
+from cugedit.result import Result, ResultConstant, return_asdict
 from cugedit.utils import pick_idle_gpu
 
 
 @dataclass
 class RKbenchResult(Result):
-    speedup_naive: float = INVALID_FLOAT
-    speedup_compile: float = INVALID_FLOAT
-    runtime_torch_naive: float = INVALID_FLOAT
-    runtime_torch_compile: float = INVALID_FLOAT
-    runtime_cuda: float = INVALID_FLOAT
+    speedup_naive: float = ResultConstant.INVALID_FLOAT
+    speedup_compile: float = ResultConstant.INVALID_FLOAT
+    runtime_torch_naive: float = ResultConstant.INVALID_FLOAT
+    runtime_torch_compile: float = ResultConstant.INVALID_FLOAT
+    runtime_cuda: float = ResultConstant.INVALID_FLOAT
 
 
 EVALUATOR = Path(__file__).parent / "robust_kbench/run_kernel.py"
@@ -98,12 +100,8 @@ def evaluate(program_path: os.PathLike, problem_dir: os.PathLike, perf: bool = F
             torch_compile_result["summary"]["avg_mean_time"] / runtime_cuda
         )
 
-        # TODO: add analyst report
-        report = ""
-
         return RKbenchResult(
             combined_score=(speedup_naive + speedup_compile) / 2,
-            report=report,
             speedup_naive=speedup_naive,
             speedup_compile=speedup_compile,
             runtime_torch_naive=torch_naive_result["summary"]["avg_mean_time"],

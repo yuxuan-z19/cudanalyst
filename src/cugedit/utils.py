@@ -7,6 +7,18 @@ import warnings
 import pynvml
 import tiktoken
 
+from .config.constants import CUDA_VISIBLE_DEVICES_ENV
+
+try:
+    import sysconfig
+
+    from torch.utils.cpp_extension import include_paths
+
+    TORCH_INCLUDES = [f"-I{path}" for path in include_paths("cuda")]
+    TORCH_INCLUDES.append(sysconfig.get_path("include", scheme="posix_prefix"))
+except:
+    TORCH_INCLUDES = []
+
 
 def strip_codeblock(codeblock: str) -> str:
     codeblock = codeblock.strip()
@@ -23,7 +35,7 @@ def ntoken(message: str) -> int:
 
 
 def pick_idle_gpu(
-    get_phy_id: bool = False,
+    get_logic_id: bool = False,
     mem_thres_mb: int = 2048,
     util_thres_percent: float = 32,
     wait_interval: float = 1.0,
@@ -33,7 +45,7 @@ def pick_idle_gpu(
     pynvml.nvmlInit()
     tstart = time.time()
     try:
-        visible = os.environ.get("CUDA_VISIBLE_DEVICES")
+        visible = os.environ.get(CUDA_VISIBLE_DEVICES_ENV)
         if visible is not None:
             visible_ids = [int(x) for x in visible.split(",")]
         else:
@@ -66,7 +78,7 @@ def pick_idle_gpu(
                     case _:
                         chosen = candidates[0]
 
-                return chosen[0] if get_phy_id else chosen[1]
+                return chosen[1] if get_logic_id else chosen[0]
 
             if timeout and time.time() - tstart > timeout:
                 raise TimeoutError(
@@ -81,3 +93,11 @@ def pick_idle_gpu(
             time.sleep(wait_interval)
     finally:
         pynvml.nvmlShutdown()
+
+
+def make_gpu_env(gpu_id: int = None):
+    if gpu_id is None:
+        gpu_id = pick_idle_gpu()
+    env = os.environ.copy()
+    env[CUDA_VISIBLE_DEVICES_ENV] = str(gpu_id)
+    return env

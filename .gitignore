@@ -257,6 +257,10 @@ __marimo__/
 # debug information files
 *.dwo
 
+# intermediate outputs
+*.txt
+*.bin
+
 # CUDA
 *.i
 *.ii

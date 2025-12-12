@@ -1,11 +1,20 @@
 import os
 import shutil
+import statistics as stats
 import subprocess
 import tempfile
+from dataclasses import dataclass, field
 from pathlib import Path
 
-from cugedit.config import *
-from cugedit.utils import strip_codeblock
+from cugedit.result import (
+    Result,
+    ResultConstant,
+    ResultMeta,
+    Status,
+    check_fast,
+    return_asdict,
+)
+from cugedit.utils import make_gpu_env, pick_idle_gpu, strip_codeblock
 
 SUITE_ROOT = Path(__file__).parent
 COMMON_DIR = SUITE_ROOT / "common"
@@ -15,10 +24,9 @@ NUM_RUNS = 10
 
 
 @dataclass
-class PolyMeta:
-    error: str = None
-    avg_gpu_sec: float = INVALID_FLOAT
-    avg_mismatch_cnt: int = INVALID_INT
+class PolyMeta(ResultMeta):
+    med_gpu_sec: float = ResultConstant.INVALID_FLOAT
+    med_mismatch_cnt: int = ResultConstant.INVALID_INT
     gpu_sec_list: list[float] = field(default_factory=list)
     mismatch_cnt_list: list[float] = field(default_factory=list)
 
@@ -37,8 +45,12 @@ def parse_result(output: str):
     return result
 
 
-def execute(program_path: Path, task_dir: Path) -> PolyMeta:
+def execute(
+    program_path: Path, task_dir: Path, gpu_id: int = 0, num_runs: int = 1
+) -> PolyMeta:
     (task_dir / "sol.cu").write_text(strip_codeblock(program_path.read_text()))
+
+    env = make_gpu_env(gpu_id)
 
     try:
         subprocess.run(
@@ -48,6 +60,7 @@ def execute(program_path: Path, task_dir: Path) -> PolyMeta:
             stderr=subprocess.PIPE,
             text=True,
             check=True,
+            env=env,
         )
     except subprocess.CalledProcessError as e:
         return PolyMeta(error=e.stderr)
@@ -57,7 +70,7 @@ def execute(program_path: Path, task_dir: Path) -> PolyMeta:
     cpu_sec_list = []
     mismatch_cnt_list = []
 
-    for _ in range(NUM_RUNS):
+    for _ in range(num_runs):
         try:
             run_proc = subprocess.run(
                 [str(exe_path)],
@@ -66,6 +79,7 @@ def execute(program_path: Path, task_dir: Path) -> PolyMeta:
                 stderr=subprocess.PIPE,
                 text=True,
                 check=True,
+                env=env,
             )
             result = parse_result(run_proc.stdout)
             gpu_sec = result.get("GPU_Seconds", float("-inf"))
@@ -76,24 +90,22 @@ def execute(program_path: Path, task_dir: Path) -> PolyMeta:
             cpu_sec_list.append(cpu_sec)
             mismatch_cnt_list.append(mismatch_cnt)
         except subprocess.CalledProcessError as e:
-            return PolyMeta(error=e.stderr)
+            return PolyMeta(Status.COMPILE, e.stderr)
 
-    avg_gpu_sec = sum(gpu_sec_list) / len(gpu_sec_list)
-    avg_mismatch_cnt = sum(mismatch_cnt_list) / len(mismatch_cnt_list)
+    med_gpu_sec = stats.median(gpu_sec_list)
+    med_mismatch_cnt = stats.median(mismatch_cnt_list)
 
-    error_msg = None
+    error = None
+    status = Status.PASS
     if (
         any(sec == float("-inf") for sec in gpu_sec_list + cpu_sec_list)
         or max(mismatch_cnt_list) > 3
     ):
-        error_msg = "Mismatch output"
+        error = ResultConstant.ERR_MISMATCH
+        status = Status.COMPILE
 
     return PolyMeta(
-        error=error_msg,
-        avg_gpu_sec=avg_gpu_sec,
-        avg_mismatch_cnt=avg_mismatch_cnt,
-        gpu_sec_list=gpu_sec_list,
-        mismatch_cnt_list=mismatch_cnt_list,
+        status, error, med_gpu_sec, med_mismatch_cnt, gpu_sec_list, mismatch_cnt_list
     )
 
 
@@ -105,33 +117,42 @@ def evaluate(program_path: Path, problem_dir: Path, perf: bool = False):
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir_path = Path(tmpdir)
 
-        common_src = COMMON_DIR
         base_task_dir = tmpdir_path / "base" / problem_dir.name
         custom_task_dir = tmpdir_path / "custom" / problem_dir.name
 
-        shutil.copytree(common_src, tmpdir_path / "common")
+        os.symlink(COMMON_DIR, tmpdir_path / "common", target_is_directory=True)
         shutil.copytree(problem_dir, base_task_dir)
         shutil.copytree(problem_dir, custom_task_dir)
 
+        gpu_id = pick_idle_gpu()
+
+        # * check correctness
         base_path = base_task_dir / "sol.init.cu"
-        base_result = execute(base_path, base_task_dir)
+        base_result = execute(base_path, base_task_dir, gpu_id)
         if base_result.error:
-            return PolyResult(error=f"Base build/run failed: {base_result.error}")
+            return PolyResult(
+                status=base_result.status,
+                error=f"Base build/run failed: {base_result.error}",
+            )
 
-        custom_result = execute(program_path, custom_task_dir)
+        custom_result = execute(program_path, custom_task_dir, gpu_id)
         if custom_result.error:
-            return PolyResult(error=f"Custom build/run failed: {custom_result.error}")
+            return PolyResult(
+                status=custom_result.status,
+                error=f"Custom build/run failed: {custom_result.error}",
+            )
 
-        if custom_result.avg_mismatch_cnt > base_result.avg_mismatch_cnt:
-            error = "Mismatch output"
-            combined_score = float("-inf")
-        else:
-            error = None
-            combined_score = base_result.avg_gpu_sec / custom_result.avg_gpu_sec
+        if custom_result.med_mismatch_cnt > base_result.med_mismatch_cnt:
+            return PolyResult(status=Status.COMPILE, error=ResultConstant.ERR_MISMATCH)
 
+        # * eval perf
+        base_result = execute(base_path, base_task_dir, gpu_id, NUM_RUNS)
+        custom_result = execute(program_path, custom_task_dir, gpu_id, NUM_RUNS)
+
+        speedup = base_result.med_gpu_sec / custom_result.med_gpu_sec
         return PolyResult(
-            combined_score=combined_score,
-            error=error,
+            combined_score=speedup,
+            status=check_fast(speedup),
             base_result=base_result,
             custom_result=custom_result,
         )

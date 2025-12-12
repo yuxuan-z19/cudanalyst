@@ -1,0 +1,4 @@
+*
+!*.md
+!.gitignore
+!keyset_template.yml
