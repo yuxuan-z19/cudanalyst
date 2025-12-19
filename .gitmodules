@@ -4,3 +4,7 @@
 [submodule "benchmark/llm/rkbench/robust_kbench"]
 	path = benchmark/llm/rkbench/robust_kbench
 	url = https://github.com/SakanaAI/robust-kbench.git
+[submodule "eval/openevolve"]
+	path = eval/openevolve
+	url = https://github.com/yuxuan-z19/openevolve.git
+	branch = cugedit

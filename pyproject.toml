@@ -6,6 +6,7 @@ readme = "readme.md"
 authors = [{ name = "yuxuan-z", email = "yuxuan-z19@qq.com" }]
 requires-python = ">=3.10"
 dependencies = [
+    "dacite>=1.9.2",
     "nvidia-ml-py>=13.580.82",
     "openai>=2.11.0",
     "tenacity>=9.1.2",

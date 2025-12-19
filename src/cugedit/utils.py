@@ -1,13 +1,13 @@
+import json
 import os
 import random
 import re
 import time
 import warnings
+from typing import Any
 
 import pynvml
 import tiktoken
-
-from .config.constants import CUDA_VISIBLE_DEVICES_ENV
 
 try:
     import sysconfig
@@ -27,11 +27,25 @@ def strip_codeblock(codeblock: str) -> str:
     return match.group(1).strip() if match else codeblock
 
 
+def render_feedback_md(feedback: dict[str, Any]) -> str:
+    sections = []
+    for key, value in feedback.items():
+        pretty_json = json.dumps(value, indent=2, ensure_ascii=False)
+        sections.append(f"### {key}\n\n ```json\n{pretty_json}\n```")
+    return "\n\n".join(sections)
+
+
 # Reference: https://cookbook.openai.com/examples/how_to_count_tokens_with_tiktoken
 def ntoken(message: str) -> int:
     encoding = tiktoken.encoding_for_model("gpt-4o-mini")
     tokens = encoding.encode(message)
     return len(tokens)
+
+
+# * set CUDA Compute Compatibility with env var "CUDA_CC_VER"
+CUDA_CC_VER = os.getenv("CUDA_CC_VER", "sm_89")
+
+CUDA_VISIBLE_DEVICES_ENV = "CUDA_VISIBLE_DEVICES"
 
 
 def pick_idle_gpu(

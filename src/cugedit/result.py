@@ -3,8 +3,6 @@ from enum import Enum
 from functools import wraps
 from typing import Final, final
 
-from .tools.base import ToolSummary
-
 
 class Status(str, Enum):
     FAIL = "fail"
@@ -19,6 +17,7 @@ class ResultConstant:
     INVALID_FLOAT: Final[float] = float("-inf")
 
     ERR_MISMATCH: Final[str] = "Mismatch output, implementation error"
+    ERR_FAULT: Final[str] = "Execution fault"
 
 
 @dataclass
@@ -28,17 +27,9 @@ class ResultMeta:
 
 
 @dataclass
-class Plan:
-    plan: str = None
-    cur_report: list[ToolSummary] = field(default_factory=list)
-    ref_reports: list[list[ToolSummary]] = field(default_factory=list)
-
-
-@dataclass
 class Result:
     combined_score: float = ResultConstant.INVALID_FLOAT
     status: Status = Status.FAIL
-    plan: Plan = None
     error: str = None
 
 

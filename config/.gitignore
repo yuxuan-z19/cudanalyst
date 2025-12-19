@@ -1,4 +1,4 @@
 *
 !*.md
 !.gitignore
-!keyset_template.yml
+!*template.yml

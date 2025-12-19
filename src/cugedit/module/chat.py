@@ -71,6 +71,20 @@ class ChatConfig:
     def all_services(self) -> list[str]:
         return [s.name for s in self.candidates]
 
+    def __getitem__(self, index: int | slice) -> Service:
+        try:
+            return self.candidates[index]
+        except IndexError:
+            raise IndexError(
+                f"Service index {index} out of range (total {len(self.candidates)})"
+            )
+
+    def __len__(self) -> int:
+        return len(self.candidates)
+
+    def __iter__(self):
+        return iter(self.candidates)
+
 
 class ChatSession:
     def __init__(self, service: Service, sys_prompt: str | None = None):
@@ -79,10 +93,10 @@ class ChatSession:
             base_url=service.api.url,
             api_key=service.api.key,
             timeout=service.api.timeout,
-            max_retries=0,  # retry 交给 tenacity
+            max_retries=0,
         )
 
-        self._system: Message | None = None
+        self._system: Message = None
         self._history: list[Message] = []
 
         if sys_prompt and sys_prompt.strip():
@@ -95,7 +109,7 @@ class ChatSession:
     def set_sys_prompt(self, prompt: str):
         self._system = Message(Role.SYSTEM, prompt)
 
-    def reset_history(self):
+    def reset(self):
         self._history.clear()
 
     def _build_messages(self, user_msg: Message, new_session: bool) -> list[dict]:

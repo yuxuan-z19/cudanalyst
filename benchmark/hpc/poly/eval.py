@@ -97,10 +97,10 @@ def execute(
 
     error = None
     status = Status.PASS
-    if (
-        any(sec == float("-inf") for sec in gpu_sec_list + cpu_sec_list)
-        or max(mismatch_cnt_list) > 3
-    ):
+    if any(sec == float("-inf") for sec in gpu_sec_list + cpu_sec_list):
+        error = ResultConstant.ERR_FAULT
+        status = Status.FAIL
+    elif max(mismatch_cnt_list) > 3:
         error = ResultConstant.ERR_MISMATCH
         status = Status.COMPILE
 

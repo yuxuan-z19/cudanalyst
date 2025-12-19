@@ -1,15 +1,14 @@
+import os
 from dataclasses import dataclass, field
 from functools import lru_cache
+from pathlib import Path
 from typing import override
 
 from tree_sitter import Node
 from tree_sitter_language_pack import get_parser
 
-from .base import BaseTool
-
-"""
-CodeANLZTool: Extract code elements for compiler analysis
-"""
+from ..utils import render_feedback_md
+from .base import BaseTool, ToolContext
 
 
 @dataclass
@@ -39,6 +38,7 @@ class Loop(Element):
     name: str = field(init=False, default="")
     directive: list[str] = field(default_factory=list)
     children: list["Loop"] = field(default_factory=list)
+    level: int = 0
 
 
 @dataclass
@@ -52,19 +52,19 @@ class Function(Element):
 class TypeResolver:
     @staticmethod
     @lru_cache
-    def resolve(node: Node) -> str:
+    def _resolve(node: Node) -> str:
         if node.type == "qualified_identifier":
             return "::".join(
-                TypeResolver.resolve(c) for c in node.children if c.type != "::"
+                TypeResolver._resolve(c) for c in node.children if c.type != "::"
             )
         elif node.is_named:
             return node.text.decode()
         return ""
 
     @staticmethod
-    def get_base_type(node: Node) -> str:
+    def parse(node: Node) -> str:
         return " ".join(
-            TypeResolver.resolve(c)
+            TypeResolver._resolve(c)
             for c in node.children
             if c.type
             in {
@@ -130,7 +130,7 @@ class ParamParser:
             if param.type != "parameter_declaration":
                 continue
 
-            base_type = TypeResolver.get_base_type(param)
+            base_type = TypeResolver.parse(param)
             declarator_node = param.child_by_field_name("declarator")
 
             name, ptr_level, array_dims, quals_decl = cls._parse_declarator(
@@ -158,7 +158,7 @@ class ParamParser:
 
 class LoopParser:
     @staticmethod
-    def find_directives(node: Node) -> list[str]:
+    def _find_directives(node: Node) -> list[str]:
         cur = node.prev_sibling
         directives = []
 
@@ -178,6 +178,14 @@ class LoopParser:
         return directives[::-1]
 
     @classmethod
+    def _calc_levels(cls, loop: Loop):
+        max_child_level = max(
+            (cls._calc_levels(child) for child in loop.children), default=0
+        )
+        loop.level = max_child_level + 1
+        return loop.level
+
+    @classmethod
     def parse(cls, node: Node | None) -> list[Loop]:
         if node is None:
             return []
@@ -190,7 +198,7 @@ class LoopParser:
 
             for child in reversed(cur_node.children):
                 if child.type == "for_statement":
-                    directive = cls.find_directives(child)
+                    directive = cls._find_directives(child)
                     body = child.text.decode()
 
                     loop = Loop(directive=directive, body=body, children=[])
@@ -201,6 +209,9 @@ class LoopParser:
                         stack.append((body_node, loop.children))
                 else:
                     stack.append((child, loops_target))
+
+        for loop in loop_list:
+            cls._calc_levels(loop)
 
         return loop_list
 
@@ -251,19 +262,34 @@ class CodeAnlzTool(BaseTool):
 
     @override
     @classmethod
-    def run(cls, code: str):
+    def extract(cls, functions: list[Function]):
+        return {
+            f.name: [{"code": l.body, "nested level": l.level} for l in f.loops]
+            for f in functions
+        }
+
+    @override
+    @classmethod
+    def render(cls, feedback):
+        return render_feedback_md(feedback)
+
+    @override
+    @classmethod
+    def run(cls, ctx: ToolContext):
+        code = Path(ctx.code_path).read_text()
+
         functions = []
 
         @lru_cache
-        def traverse(n: Node):
+        def _traverse(n: Node):
             if n.type == "function_definition":
                 func = FunctionParser.parse(n)
                 if func:
                     functions.append(func)
             else:
                 for c in n.children:
-                    traverse(c)
+                    _traverse(c)
 
         tree = cls.PARSER.parse(code.encode())
-        traverse(tree.root_node)
-        return functions
+        _traverse(tree.root_node)
+        return cls.extract(functions)

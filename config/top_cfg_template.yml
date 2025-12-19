@@ -1,0 +1,20 @@
+chat_config_path: "./config/keyset.yml"
+chat_select: "main"
+
+debug_cfg:
+  enabled: true
+  formatted: true
+  summarized: true
+
+anlz_cfg:
+  enabled: true
+  formatted: true
+  summarized: true
+
+perf_cfg:
+  enabled: true
+  formatted: true
+  summarized: true
+
+plan_cfg:
+  enabled: true

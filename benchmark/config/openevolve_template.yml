@@ -1,5 +1,5 @@
-# Configuration for function minimization example
-max_iterations: 128
+# Adopted from openevolve/examples/mlx_metal_kernel_opt/config.yaml
+max_iterations: 200
 checkpoint_interval: 10
 log_level: "INFO"
 
@@ -12,12 +12,10 @@ llm:
   models:
     - name: # TODO: config your LLM API
       weight: 1.0
-  temperature: 0.7
   max_tokens: 65535
   timeout: 1000000
 
 # Prompt configuration
-# * CUDA spec could be obtained using ncu_occupancy.get_gpu_data()
 prompt:
   system_message: |
     You are an expert GPU engineer fluent in CUDA, C++, WMMA/Tensor Cores, PTX, memory hierarchy, and NVIDIA architecture.
@@ -57,81 +55,32 @@ prompt:
             blocks_per_sm * regs_per_thread * threads_per_block <= registers_per_sm
             blocks_per_sm * smem_per_block                      <= smem_per_sm
 
-    5. Numerical correctness
-        - Pad dimensions to MMA tile sizes when needed.
-        - For softmax or normalization, apply the max-subtraction trick.
-        - Final output must match a full-precision baseline within **1e-4**.
-
-    6. Micro-optimizations
+    5. Micro-optimizations
         - Use inline PTX only where profiling would show unavoidable hotspots.
         - Provide a portable CUDA path and an architecture-tuned fast path.
-
-    ## Target Arch
-
-    NVIDIA RTX 4090 (SM89)
-
-    Follow constraints:
-
-    ```json
-    {
-        "cc_major": 8,
-        "cc_minor": 9,
-        "sm_version": "sm_89",
-        "threads_per_warp": 32,
-        "max_warps_per_sm": 48,
-        "max_threads_per_sm": 1536,
-        "max_thread_blocks_per_sm": 24,
-        "block_barriers_per_sm": 24,
-        "smem_per_sm": 102400,
-        "max_shared_mem_per_block": 102400,
-        "registers_per_sm": 65536,
-        "max_regs_per_block": 65536,
-        "max_regs_per_thread": 255,
-        "reg_allocation_unit_size": 256,
-        "reg_allocation_granularity": "warp",
-        "shared_mem_allocation_unit_size": 128,
-        "warps_allocation_granularity": 4,
-        "max_thread_block_size": 1024,
-        "shared_mem_size_configs": [
-            102400,
-            65536,
-            32768,
-            16384,
-            8192,
-            0
-        ],
-        "warp_reg_allocation_granularities": [
-            256
-        ]
-    }
-    ```
-
-    Always choose kernels that saturate Tensor Cores, minimize memory stalls, and maximize ILP and occupancy.
   num_top_programs: 3
-  use_template_stochasticity: true
+  num_diverse_programs: 2
 
 # Database configuration
 database:
-  population_size: 20
-  archive_size: 10
-  num_islands: 5
-  elite_selection_ratio: 0.2
-  exploitation_ratio: 0.5
+  population_size: 25
+  archive_size: 12
+  num_islands: 3
+  elite_selection_ratio: 0.3
+  exploitation_ratio: 0.65
+  exploration_ratio: 0.35
 
 # Evaluator configuration
 evaluator:
   timeout: 1000000
   cascade_evaluation: false
-  cascade_thresholds: [0.5, 0.75]
   parallel_evaluations: 4
   use_llm_feedback: false
 
 # Evolution settings
 diff_based_evolution: false
 allow_full_rewrites: true
-
-# Add or modify this in config.yaml
-max_code_length: 60000 # Increase from default 10000
+max_code_length: 60000
 
 # ! DON'T CHANGE: Collect contexts to reduce GPU memory overhead
 max_tasks_per_child: 1
