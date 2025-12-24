@@ -12,7 +12,6 @@ class ModuleCfg:
     enabled: bool = False
     formatted: bool = False
     summarized: bool = False
-    prompt: PromptCfg = None
 
 
 @dataclass
@@ -29,15 +28,12 @@ class Module:
     NAME = None
 
     def __init__(
-        self,
-        cfg: ModuleCfg,
-        service: Service,
-        tool: BaseTool,
+        self, cfg: ModuleCfg, prompt: PromptCfg, service: Service, tool: BaseTool
     ):
         self.cfg = cfg
-        self.tool = tool
+        self.prompt = prompt
         self.agent = ChatSession(service)
-        self.prompt = cfg.prompt
+        self.tool = tool
         self.name = self.NAME or self.tool.__name__
 
     def _build_context(self, feedback):
@@ -76,8 +72,8 @@ class Module:
 class Planner(Module):
     NAME = "Planner"
 
-    def __init__(self, cfg: ModuleCfg, service: Service):
-        super().__init__(cfg, service, None)
+    def __init__(self, cfg: ModuleCfg, prompt: PromptCfg, service: Service):
+        super().__init__(cfg, prompt, service, None)
 
     @override
     def _build_context(self, reports: list[Report]) -> str:

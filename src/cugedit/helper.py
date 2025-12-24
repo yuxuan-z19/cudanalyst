@@ -2,8 +2,11 @@ import json
 import os
 import random
 import re
+import statistics as stats
+import subprocess
 import time
 import warnings
+from enum import Enum
 from typing import Any
 
 import pynvml
@@ -33,6 +36,10 @@ def render_feedback_md(feedback: dict[str, Any]) -> str:
         pretty_json = json.dumps(value, indent=2, ensure_ascii=False)
         sections.append(f"### {key}\n\n ```json\n{pretty_json}\n```")
     return "\n\n".join(sections)
+
+
+def stats_med(result: list):
+    return stats.median(result)
 
 
 # Reference: https://cookbook.openai.com/examples/how_to_count_tokens_with_tiktoken
@@ -115,3 +122,45 @@ def make_gpu_env(gpu_id: int = None):
     env = os.environ.copy()
     env[CUDA_VISIBLE_DEVICES_ENV] = str(gpu_id)
     return env
+
+
+def run_cmd(cmd: list[str], cwd: os.PathLike, gpu_id: int | None = None):
+    env = os.environ.copy()
+    if gpu_id is not None:
+        env.update(make_gpu_env(gpu_id))
+
+    return subprocess.run(
+        cmd,
+        cwd=cwd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=env,
+        check=True,
+    )
+
+
+class Stage(str, Enum):
+    BUILD = "build"
+    RUN = "run"
+    VERIFY = "verify"
+
+
+def parse_cmd_failure(
+    err: subprocess.CalledProcessError | str,
+    stage: Stage = Stage.BUILD,
+) -> str:
+    res = {"stage": stage}
+    if isinstance(err, str):
+        res["error"] = err
+    else:
+        res.update(
+            {
+                "stage": stage,
+                "command": err.cmd,
+                "returncode": err.returncode,
+                "stdout": err.stdout,
+                "stderr": err.stderr,
+            }
+        )
+    return json.dumps(res, indent=2, ensure_ascii=False)

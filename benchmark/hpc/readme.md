@@ -1,67 +1,28 @@
 # HPC benchmarks
 
-## PolyBench/GPU (poly)
+## NAS Parallel Benchmarks for GPUs (npb)
 
-[PolyBench/GPU](https://www.cs.colostate.edu/~pouchet/software/polybench/GPU/index.html) (a.k.a. [sgrauerg/polybenchGpu](https://github.com/sgrauerg/polybenchGpu)) is a collection of [the Polyhedral Benchmark suite](https://www.cs.colostate.edu/~pouchet/software/polybench/) codes (as well as convolution) implemented for processing on the GPU using CUDA, OpenCL, and HMPP (pragma-based compiler).
+[GMAP/NPB-GPU](https://github.com/GMAP/NPB-GPU) is an open-sourced GPU implementation for the original [NAS Parallel Benchmarks (NPB)](https://www.nas.nasa.gov/software/npb.html), supporting GPUs from NVIDIA, AMD, and Intel.
 
 ```bibtex
-@inproceedings{poly,
-    title        = {Auto-tuning a high-level language targeted to GPU codes},
+@inproceedings{npb-gpu,
+    title        = {Efficient NAS Parallel Benchmark Kernels with CUDA},
     author       = {
-        Grauer-Gray, Scott and Xu, Lifan and Searles, Robert and
-        Ayalasomayajula, Sudhee and Cavazos, John
+        Araujo, Gabriell Alves de and Griebler, Dalvan and Danelutto, Marco and
+        Fernandes, Luiz Gustavo
     },
-    year         = 2012,
-    booktitle    = {2012 Innovative Parallel Computing (InPar)},
+    year         = 2020,
+    booktitle    = {
+        2020 28th Euromicro International Conference on Parallel, Distributed and
+        Network-Based Processing (PDP)
+    },
     volume       = {},
     number       = {},
-    pages        = {1--10},
-    doi          = {10.1109/InPar.2012.6339595},
+    pages        = {9--16},
+    doi          = {10.1109/PDP50117.2020.00009},
     keywords     = {
-        Graphics processing unit;Abstracts;Programming;Nickel;Tiles;Benchmark
-        testing;Auto-tuning;GPU;CUDA;OpenCL;Optimization;Belief Propagation
+        Graphics processing units;Kernel;Benchmark testing;Programming;Computer
+        architecture;Hardware;Standards
     }
 }
 ```
-
-## Rodinia (rodinia)
-
-[Rodiana](https://rodinia.cs.virginia.edu/) (a.k.a. [yuhc/gpu-rodinia](https://github.com/yuhc/gpu-rodinia)) is a benchmark suite for heterogeneous computing, including applications and kernels which target multi-core CPU and GPU platforms.
-
-```bibtex
-@inproceedings{rodinia,
-    title        = {Rodinia: A benchmark suite for heterogeneous computing},
-    author       = {
-        Che, Shuai and Boyer, Michael and Meng, Jiayuan and Tarjan, David and
-        Sheaffer, Jeremy W. and Lee, Sang-Ha and Skadron, Kevin
-    },
-    year         = 2009,
-    booktitle    = {
-        Proceedings of the 2009 IEEE International Symposium on Workload
-        Characterization (IISWC)
-    },
-    publisher    = {IEEE Computer Society},
-    address      = {USA},
-    series       = {IISWC '09},
-    pages        = {44–54},
-    doi          = {10.1109/IISWC.2009.5306797},
-    isbn         = 9781424451562,
-    url          = {https://doi.org/10.1109/IISWC.2009.5306797},
-    abstract     = {
-        This paper presents and characterizes Rodinia, a benchmark suite for
-        heterogeneous computing. To help architects study emerging platforms
-        such as GPUs (Graphics Processing Units), Rodinia includes applications
-        and kernels which target multi-core CPU and GPU platforms. The choice
-        of applications is inspired by Berkeley's dwarf taxonomy. Our
-        characterization shows that the Rodinia benchmarks cover a wide range
-        of parallel communication patterns, synchronization techniques and
-        power consumption, and has led to some important architectural insight,
-        such as the growing importance of memory-bandwidth limitations and the
-        consequent importance of data layout.
-    },
-    numpages     = 11
-}
-```
-
-## SHOC (shoc)
-

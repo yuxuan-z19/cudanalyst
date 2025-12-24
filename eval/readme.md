@@ -14,6 +14,6 @@
 }
 ```
 
-### Changelog
+### Changelog (latest)
 
-- 251220: Add `problem_dir` in `EvaluatorConfig`
+- {251220} Commit [d09052b](https://github.com/yuxuan-z19/openevolve/commit/d09052bb3f149fd4dc0d480932bf988dd251df56): Add `problem_dir` in `EvaluatorConfig`

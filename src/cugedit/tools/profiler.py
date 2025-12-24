@@ -6,7 +6,7 @@ from typing import Any, override
 
 import ncu_report
 
-from ..utils import pick_idle_gpu, render_feedback_md
+from ..helper import pick_idle_gpu, render_feedback_md
 from .base import BaseTool, ToolContext
 
 

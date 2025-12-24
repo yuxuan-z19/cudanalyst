@@ -1,4 +1,4 @@
-from dataclasses import asdict, dataclass, field, is_dataclass
+from dataclasses import InitVar, asdict, dataclass, field, is_dataclass
 from enum import Enum
 from functools import wraps
 from typing import Final, final
@@ -8,6 +8,8 @@ class Status(str, Enum):
     FAIL = "fail"
     COMPILE = "compile"
     PASS = "pass"
+
+    # only be set with check_fast()
     FAST = "fast"
 
 
@@ -25,12 +27,24 @@ class ResultMeta:
     status: Status = Status.FAIL
     error: str = None
 
+    def __post_init__(self):
+        if self.error is None:
+            self.status = Status.PASS
+
 
 @dataclass
 class Result:
     combined_score: float = ResultConstant.INVALID_FLOAT
     status: Status = Status.FAIL
     error: str = None
+
+    tol: InitVar[float] = 0.12
+
+    def __post_init__(self, tol):
+        if self.combined_score != ResultConstant.INVALID_FLOAT:
+            self.status = (
+                Status.FAST if self.combined_score > (1 + tol) else Status.PASS
+            )
 
 
 def return_asdict(func):
@@ -42,7 +56,3 @@ def return_asdict(func):
         return res
 
     return wrapper
-
-
-def check_fast(speedup: float, tol: float = 0.1) -> Status:
-    return Status.FAST if speedup > (1 + tol) else Status.PASS

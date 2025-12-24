@@ -21,6 +21,10 @@
 
 [SakanaAI/robust-kbench](https://github.com/SakanaAI/robust-kbench) is a new benchmark for more rigorous evaluation of kernel performance and correctness across varied scenarios.
 
+```bash
+cd ./rkbench/robust-kbench && uv pip install -e .
+```
+
 ```bibtex
 @misc{rkbench,
     title        = {
@@ -38,7 +42,3 @@
     primaryclass = {cs.SE}
 }
 ```
-
-## compute-eval (cueval)
-
-[NVIDIA/compute-eval](https://github.com/NVIDIA/compute-eval) is a *[correctness-first](https://github.com/NVIDIA/compute-eval/issues/7)* benchmark harnessing the compilability of LLM-generated CUDA kernels.

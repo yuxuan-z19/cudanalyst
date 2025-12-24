@@ -290,3 +290,4 @@ cmake-build-*
 
 # exp outputs
 out*/
+test*

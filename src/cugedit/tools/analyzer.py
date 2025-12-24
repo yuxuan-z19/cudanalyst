@@ -7,7 +7,7 @@ from typing import override
 from tree_sitter import Node
 from tree_sitter_language_pack import get_parser
 
-from ..utils import render_feedback_md
+from ..helper import render_feedback_md
 from .base import BaseTool, ToolContext
 
 

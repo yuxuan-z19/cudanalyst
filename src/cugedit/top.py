@@ -6,6 +6,7 @@ import yaml
 from dacite import from_dict
 
 from .module import ChatConfig, Module, ModuleCfg, Planner
+from .module.prompts import *
 from .tools import CodeAnlzTool, LintTool, PerfTool, SanitizeTool, ToolContext
 
 
@@ -29,16 +30,17 @@ def load_top_cfg(yaml_path: str) -> TopCfg:
 class Top:
     def __init__(self, cfg: TopCfg):
         service = ChatConfig(cfg.chat_config_path, cfg.chat_select)[0]
-        self.static_debugger = Module(cfg.debug_cfg, LintTool, service)
-        self.runtime_debugger = Module(cfg.debug_cfg, SanitizeTool, service)
-        self.analyzer = Module(cfg.anlz_cfg, CodeAnlzTool, service)
-        self.profiler = Module(cfg.perf_cfg, PerfTool, service)
 
-        self.planner = Planner()
+        self.static_debugger = Module(cfg.debug_cfg, LINT_PROMPT, service, LintTool)
+        self.runtime_debugger = Module(
+            cfg.debug_cfg, SANITIZE_PROMPT, service, SanitizeTool
+        )
+        self.analyzer = Module(cfg.anlz_cfg, ANLZ_PROMPT, service, CodeAnlzTool)
+        self.profiler = Module(cfg.perf_cfg, PERF_PROMPT, service, PerfTool)
+
+        self.planner = Planner(ModuleCfg(cfg.use_planner), PLAN_PROMPT, service)
 
     def run(self, ctx: ToolContext) -> str:
-        code = Path(ctx.code_path).read_text()
-
         phases = [
             [self.static_debugger],
             [self.runtime_debugger],
@@ -49,6 +51,6 @@ class Top:
             reports = [m.run(ctx) for m in phase]
             active_reports = [r for r in reports if r]
             if active_reports:
-                return self.planner.run(code, active_reports)
+                return self.planner.run(ctx, active_reports)
 
-        return self.planner.run(code)
+        return self.planner.run(ctx)

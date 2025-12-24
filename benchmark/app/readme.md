@@ -1,4 +1,4 @@
-# CUDA Mini-Apps + Workloads
+# CUDA Mini-Apps
 
 ## XSBench (xsbench)
 
@@ -16,9 +16,4 @@
     address      = {Kyoto},
     url          = {https://www.mcs.anl.gov/papers/P5064-0114.pdf}
 }
-```
-
-## LULESH (lulesh)
-
-```bibtex
 ```

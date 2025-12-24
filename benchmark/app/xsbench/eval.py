@@ -4,83 +4,103 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
-from pprint import pp
 
-from cugedit.analyst import Analyst
-from cugedit.config import *
-from cugedit.utils import pick_idle_gpu, strip_codeblock
+from cugedit.helper import *
+from cugedit.result import *
 
-ITER = 4
+NITER = 4
+SRC_DIR = Path(__file__).parent / "src"
+
+
+@dataclass
+class XsbenchMeta(ResultMeta):
+    med_lookup: int = ResultConstant.INVALID_INT
+    lookup_list: list[int] = field(default_factory=list)
 
 
 @dataclass
 class XsbenchResult(Result):
-    base_lookups: int = INVALID_INT
-    custom_lookups: int = INVALID_INT
+    base_result: XsbenchMeta = None
+    custom_result: XsbenchMeta = None
 
 
 def get_lookup_rate(raw: str):
     is_valid = bool(re.search(r"Verification checksum:\s*\d+\s*\(Valid\)", raw))
-    lookups_s = INVALID_INT
-    if is_valid:
-        m2 = re.search(r"Lookups/s:\s*([\d,]+)", raw)
-        if m2:
-            lookups_s = m2.group(1).replace(",", "")
-    return int(lookups_s)
+    lookups = ResultConstant.INVALID_INT
+    if is_valid and (m2 := re.search(r"Lookups/s:\s*([\d,]+)", raw)):
+        lookups = m2.group(1).replace(",", "")
+    return is_valid, int(lookups)
 
 
 @return_asdict
-def evaluate(program_path: os.PathLike, perf: bool = False):
+def evaluate(program_path: os.PathLike):
+    program_path = Path(program_path)
+
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp_path = Path(tmpdir)
-        code = strip_codeblock(Path(program_path).read_text())
 
-        src_path = Path(__file__).parent / "src"
         dst_path = tmp_path / "src"
-        shutil.copytree(src_path, dst_path)
+        shutil.copytree(SRC_DIR, dst_path)
 
-        sol_file = dst_path / "Solution.cu"
-        sol_file.write_text(code)
+        (dst_path / "Solution.cu").write_text(strip_codeblock(program_path.read_text()))
 
-        make_proc = subprocess.run(
-            ["make"], cwd=dst_path, capture_output=True, text=True
-        )
-        if make_proc.returncode != 0:
-            return Result(error="make failed! " + make_proc.stderr)
+        gpu_id = pick_idle_gpu()
 
-        env = os.environ.copy()
-        env["CUDA_VISIBLE_DEVICES"] = str(pick_idle_gpu())
+        try:
+            run_cmd(["make"], dst_path, gpu_id)
+        except subprocess.CalledProcessError as e:
+            return XsbenchResult(error=parse_cmd_failure(e))
 
-        def _run_and_score(cmd):
-            total = 0
-            for _ in range(ITER):
-                proc = subprocess.run(
-                    cmd, capture_output=True, cwd=dst_path, env=env, text=True
-                )
-                if proc.returncode != 0:
-                    report = Analyst.analyze(cmd, dst_path, False) if perf else ""
-                    return None, Result(
-                        error="exec failed! " + proc.stderr, report=report
+        def _exec_impl(cmd: list[str], niter: int = 1):
+            lookup_list = []
+            for _ in range(niter):
+                try:
+                    proc = run_cmd(cmd, dst_path, gpu_id)
+                except Exception as e:
+                    return XsbenchMeta(
+                        status=Status.COMPILE, error=parse_cmd_failure(e, Stage.RUN)
                     )
-                total += get_lookup_rate(proc.stdout)
-            return total / ITER, None
+                is_valid, lookup = get_lookup_rate(proc.stdout)
+                if not is_valid:
+                    return XsbenchMeta(
+                        status=Status.COMPILE,
+                        error=parse_cmd_failure(
+                            ResultConstant.ERR_MISMATCH, Stage.VERIFY
+                        ),
+                    )
+                lookup_list.append(lookup)
+            return XsbenchMeta(
+                med_lookup=stats_med(lookup_list), lookup_list=lookup_list
+            )
 
         test_cases = {
             "base": ["./XSBench.exe", "-m", "event", "-k", "6"],
             "custom": ["./XSBench.exe", "-m", "event", "-k", "7"],
         }
 
-        scores = {}
-        for name, cmd in test_cases.items():
-            score, err = _run_and_score(cmd)
-            if err:
-                return err
-            scores[name] = score
+        # * check correctness
+        for _, cmd in test_cases.items():
+            if (res := _exec_impl(cmd)) and res.status != Status.PASS:
+                return XsbenchResult(status=res.status, error=res.error)
 
-        report = Analyst.analyze(test_cases["custom"], dst_path) if perf else ""
-        ratio = scores["custom"] / scores["base"] if scores["custom"] > 0 else 0
-        return Result(combined_score=ratio, report=report)
+        # * eval perf
+        base_result = _exec_impl(test_cases["base"], NITER)
+        custom_result = _exec_impl(test_cases["custom"], NITER)
+
+        score = custom_result.med_lookup / base_result.med_lookup
+        return XsbenchResult(
+            combined_score=score, base_result=base_result, custom_result=custom_result
+        )
 
 
 if __name__ == "__main__":
-    pp(evaluate(Path(__file__).parent / "./src/Solution.init.cu"))
+    import time
+    from pprint import pprint
+
+    tstart = time.perf_counter()
+    result = evaluate(Path(__file__).parent / "./src/Solution.init.cu")
+    tend = time.perf_counter()
+
+    if result:
+        print(f"--- Result in {tend - tstart:.4f} sec ---")
+        pprint(result)
