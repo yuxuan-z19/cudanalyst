@@ -22,12 +22,12 @@
 /* Define the possible dataset sizes. */
 #ifdef MINI_DATASET
 #define TSTEPS 1
-#define N 1024
+#define N 256
 #endif
 
 #ifdef SMALL_DATASET
 #define TSTEPS 1
-#define N 1024
+#define N 512
 #endif
 
 #ifdef STANDARD_DATASET /* Default if unspecified. */
@@ -37,12 +37,12 @@
 
 #ifdef LARGE_DATASET
 #define TSTEPS 1
-#define N 1024
+#define N 2048
 #endif
 
 #ifdef EXTRALARGE_DATASET
 #define TSTEPS 1
-#define N 1024
+#define N 4096
 #endif
 #endif /* !N */
 

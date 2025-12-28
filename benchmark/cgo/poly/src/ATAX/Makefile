@@ -1,4 +1,5 @@
-EXECUTABLE := ATAX.exe
+TASK := ATAX
 CUFILES := atax.cu sol.cu
+COMMON_PATH := ../../common
 
-include ../../common/common.mk
+include ${COMMON_PATH}/common.mk

@@ -1,5 +1,6 @@
-EXECUTABLE := FDTD-2D.exe
+TASK := FDTD-2D
 CUFILES := fdtd2d.cu sol.cu
+COMMON_PATH := ../../common
 
-include ../../common/common.mk
+include ${COMMON_PATH}/common.mk
 

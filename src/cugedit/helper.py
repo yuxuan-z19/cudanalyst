@@ -9,6 +9,7 @@ import warnings
 from enum import Enum
 from typing import Any
 
+import numpy as np
 import pynvml
 import tiktoken
 
@@ -40,6 +41,19 @@ def render_feedback_md(feedback: dict[str, Any]) -> str:
 
 def stats_med(result: list):
     return stats.median(result)
+
+
+def elemwise_equal(
+    a_list: list | np.ndarray, b_list: list | np.ndarray, rtol=1e-9, atol=0.0
+) -> bool:
+    a = np.asarray(a_list)
+    b = np.asarray(b_list)
+    if a.shape != b.shape:
+        return False
+    if np.issubdtype(a.dtype, np.floating) or np.issubdtype(b.dtype, np.floating):
+        return np.allclose(a, b, rtol=rtol, atol=atol)
+    else:
+        return np.array_equal(a, b)
 
 
 # Reference: https://cookbook.openai.com/examples/how_to_count_tokens_with_tiktoken

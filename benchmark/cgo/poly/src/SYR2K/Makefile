@@ -1,4 +1,5 @@
-EXECUTABLE := SYR2K.exe
+TASK := SYR2K
 CUFILES := syr2k.cu sol.cu
+COMMON_PATH := ../../common
 
-include ../../common/common.mk
+include ${COMMON_PATH}/common.mk

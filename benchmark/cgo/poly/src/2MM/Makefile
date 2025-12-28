@@ -1,4 +1,5 @@
-EXECUTABLE := 2MM.exe
+TASK := 2MM
 CUFILES := 2mm.cu sol.cu
+COMMON_PATH := ../../common
 
-include ../../common/common.mk
+include ${COMMON_PATH}/common.mk

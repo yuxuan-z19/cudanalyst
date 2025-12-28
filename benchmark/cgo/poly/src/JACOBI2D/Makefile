@@ -1,4 +1,5 @@
-EXECUTABLE := JACOBI2D.exe
+TASK := JACOBI2D
 CUFILES := jacobi2D.cu sol.cu
+COMMON_PATH := ../../common
 
-include ../../common/common.mk
+include ${COMMON_PATH}/common.mk

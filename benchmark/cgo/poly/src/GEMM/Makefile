@@ -1,4 +1,5 @@
-EXECUTABLE := GEMM.exe
+TASK := GEMM
 CUFILES := gemm.cu sol.cu
+COMMON_PATH := ../../common
 
-include ../../common/common.mk
+include ${COMMON_PATH}/common.mk

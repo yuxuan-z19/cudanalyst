@@ -291,3 +291,10 @@ cmake-build-*
 # exp outputs
 out*/
 test*
+
+# polybench executables
+*.MINI
+*.SMALL
+*.STANDARD
+*.LARGE
+*.EXTRALARGE

@@ -1,5 +1,6 @@
-EXECUTABLE := GRAMSCHM.exe
+TASK := GRAMSCHM
 CUFILES := gramschmidt.cu sol.cu
 LDFLAGS := -lm
+COMMON_PATH := ../../common
 
-include ../../common/common.mk
+include ${COMMON_PATH}/common.mk

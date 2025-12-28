@@ -1,8 +1,8 @@
 # DSLs/Compilers benchmarks
 
-## PolyBench-GPU (poly)
+## PolyBench-ACC (poly)
 
-[PolyBench-GPU](https://www.cs.colostate.edu/~pouchet/software/polybench/GPU/index.html) (a.k.a. [sgrauerg/polybenchGpu](https://github.com/sgrauerg/polybenchGpu)) is a collection of [the Polyhedral Benchmark suite](https://www.cs.colostate.edu/~pouchet/software/polybench/) codes (as well as convolution) implemented for processing on the GPU using CUDA, OpenCL, and HMPP (pragma-based compiler).
+[cavazos-lab/PolyBench-ACC](https://github.com/cavazos-lab/PolyBench-ACC), an actively maintained fork of [sgrauerg/polybenchGpu](https://github.com/sgrauerg/polybenchGpu), is a collection of [the Polyhedral Benchmark suite](https://www.cs.colostate.edu/~pouchet/software/polybench/) codes (plus convolution) implemented for processing on the GPU using CUDA, OpenCL, and HMPP. Compared to the original polybenchGpu, PolyBench-ACC updates and standardizes the datasize configurations to better reflect modern GPU evaluation settings.
 
 ```bibtex
 @inproceedings{poly,

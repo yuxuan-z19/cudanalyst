@@ -1,4 +1,5 @@
-EXECUTABLE := DOITGEN.exe
+TASK := DOITGEN
 CUFILES := doitgen.cu sol.cu
+COMMON_PATH := ../../common
 
-include ../../common/common.mk
+include ${COMMON_PATH}/common.mk

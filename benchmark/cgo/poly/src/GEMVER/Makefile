@@ -1,4 +1,5 @@
-EXECUTABLE := GEMVER.exe
+TASK := GEMVER
 CUFILES := gemver.cu sol.cu
+COMMON_PATH := ../../common
 
-include ../../common/common.mk
+include ${COMMON_PATH}/common.mk

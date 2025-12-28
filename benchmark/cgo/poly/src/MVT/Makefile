@@ -1,4 +1,5 @@
-EXECUTABLE := MVT.exe
+TASK := MVT
 CUFILES := mvt.cu sol.cu
+COMMON_PATH := ../../common
 
-include ../../common/common.mk
+include ${COMMON_PATH}/common.mk

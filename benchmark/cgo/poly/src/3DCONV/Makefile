@@ -1,4 +1,5 @@
-EXECUTABLE := 3DCONV.exe
+TASK := 3DCONV
 CUFILES := 3DConvolution.cu sol.cu
+COMMON_PATH := ../../common
 
-include ../../common/common.mk
+include ${COMMON_PATH}/common.mk

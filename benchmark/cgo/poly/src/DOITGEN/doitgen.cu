@@ -34,42 +34,53 @@
 
 #define GPU_DEVICE 0
 
-void doitgenCPU(DATA_TYPE* sum, DATA_TYPE* A, DATA_TYPE* C4) {
-    for (int r = 0; r < NR; r++)
-        for (int q = 0; q < NQ; q++) {
-            for (int p = 0; p < NP; p++) {
-                sum[r * (NQ * NP) + q * NP + p] = (DATA_TYPE)0.0;
-                for (int s = 0; s < NP; s++)
-                    sum[r * (NQ * NP) + q * NP + p] =
-                        sum[r * (NQ * NP) + q * NP + p] +
-                        A[r * (NQ * NP) + q * NP + s] * C4[s * NP + p];
+#define RUN_ON_CPU
+
+/* Main computational kernel. The whole function will be timed,
+   including the call and return. */
+void kernel_doitgenCpu(int nr, int nq, int np,
+                       DATA_TYPE POLYBENCH_3D(A, NR, NQ, NP, nr, nq, np),
+                       DATA_TYPE POLYBENCH_2D(C4, NP, NP, np, np),
+                       DATA_TYPE POLYBENCH_3D(sum, NR, NQ, NP, nr, nq, np)) {
+    int r, q, p, s;
+
+    for (r = 0; r < _PB_NR; r++) {
+        for (q = 0; q < _PB_NQ; q++) {
+            for (p = 0; p < _PB_NP; p++) {
+                sum[r][q][p] = 0;
+                for (s = 0; s < _PB_NP; s++)
+                    sum[r][q][p] = sum[r][q][p] + A[r][q][s] * C4[s][p];
             }
-
-            for (int p = 0; p < NP; p++)
-                A[r * (NQ * NP) + q * NP + p] = sum[r * (NQ * NP) + q * NP + p];
+            for (p = 0; p < _PB_NR; p++) A[r][q][p] = sum[r][q][p];
         }
+    }
 }
 
-void init_array(DATA_TYPE* A, DATA_TYPE* C4) {
-    for (int i = 0; i < NR; i++)
-        for (int j = 0; j < NQ; j++)
-            for (int k = 0; k < NP; k++)
-                A[i * (NQ * NP) + j * NP + k] = ((DATA_TYPE)i * j + k) / NP;
+/* Array initialization. */
+void init_array(int nr, int nq, int np,
+                DATA_TYPE POLYBENCH_3D(A, NR, NQ, NP, nr, nq, np),
+                DATA_TYPE POLYBENCH_2D(C4, NP, NP, np, np)) {
+    int i, j, k;
 
-    for (int i = 0; i < NP; i++)
-        for (int j = 0; j < NP; j++) C4[i * NP + j] = ((DATA_TYPE)i * j) / NP;
+    for (i = 0; i < nr; i++)
+        for (j = 0; j < nq; j++)
+            for (k = 0; k < np; k++) A[i][j][k] = ((DATA_TYPE)i * j + k) / np;
+
+    for (i = 0; i < np; i++)
+        for (j = 0; j < np; j++) C4[i][j] = ((DATA_TYPE)i * j) / np;
 }
 
-void compareResults(DATA_TYPE* sum, DATA_TYPE* sum_outputFromGpu) {
+void compareResults(int nr, int nq, int np,
+                    DATA_TYPE POLYBENCH_3D(sum, NR, NQ, NP, nr, nq, np),
+                    DATA_TYPE POLYBENCH_3D(sum_outputFromGpu, NR, NQ, NP, nr,
+                                           nq, np)) {
     int fail = 0;
 
-    for (int r = 0; r < NR; r++)
-        for (int q = 0; q < NQ; q++)
-            for (int p = 0; p < NP; p++)
-                fail +=
-                    percentDiff(sum[r * (NQ * NP) + q * NP + p],
-                                sum_outputFromGpu[r * (NQ * NP) + q * NP + p]) >
-                    PERCENT_DIFF_ERROR_THRESHOLD;
+    for (int r = 0; r < nr; r++)
+        for (int q = 0; q < nq; q++)
+            for (int p = 0; p < np; p++)
+                fail += percentDiff(sum[r][q][p], sum_outputFromGpu[r][q][p]) >
+                        PERCENT_DIFF_ERROR_THRESHOLD;
 
     // Print results
     printf("Mismatch_Count=%d\n", fail);
@@ -82,41 +93,46 @@ void GPU_argv_init() {
     cudaSetDevice(GPU_DEVICE);
 }
 
-__global__ void doitgen_kernel1(DATA_TYPE* sum, DATA_TYPE* A, DATA_TYPE* C4,
-                                int r);
+__global__ void doitgen_kernel1(int nr, int nq, int np, DATA_TYPE* sum,
+                                DATA_TYPE* A, DATA_TYPE* C4, int r);
 
-__global__ void doitgen_kernel2(DATA_TYPE* sum, DATA_TYPE* A, DATA_TYPE* C4,
-                                int r);
+__global__ void doitgen_kernel2(int nr, int nq, int np, DATA_TYPE* sum,
+                                DATA_TYPE* A, DATA_TYPE* C4, int r);
 
-void doitgenCuda(DATA_TYPE* A, DATA_TYPE* C4, DATA_TYPE* sum,
-                 DATA_TYPE* sum_outputFromGpu) {
+void doitgenCuda(int nr, int nq, int np,
+                 DATA_TYPE POLYBENCH_3D(A, NR, NQ, NP, nr, nq, np),
+                 DATA_TYPE POLYBENCH_2D(C4, NP, NP, np, np),
+                 DATA_TYPE POLYBENCH_3D(sum_outputFromGpu, NR, NQ, NP, nr, nq,
+                                        np)) {
     DATA_TYPE* AGpu;
     DATA_TYPE* C4Gpu;
     DATA_TYPE* sumGpu;
 
-    cudaMalloc(&AGpu, NR * NQ * NP * sizeof(DATA_TYPE));
-    cudaMalloc(&C4Gpu, NP * NP * sizeof(DATA_TYPE));
-    cudaMalloc(&sumGpu, NR * NQ * NP * sizeof(DATA_TYPE));
+    cudaMalloc(&AGpu, nr * nq * np * sizeof(DATA_TYPE));
+    cudaMalloc(&C4Gpu, np * np * sizeof(DATA_TYPE));
+    cudaMalloc(&sumGpu, nr * nq * np * sizeof(DATA_TYPE));
 
-    cudaMemcpy(AGpu, A, NR * NQ * NP * sizeof(DATA_TYPE),
+    cudaMemcpy(AGpu, A, nr * nq * np * sizeof(DATA_TYPE),
                cudaMemcpyHostToDevice);
-    cudaMemcpy(C4Gpu, C4, NP * NP * sizeof(DATA_TYPE), cudaMemcpyHostToDevice);
-    cudaMemcpy(sumGpu, sum, NR * NQ * NP * sizeof(DATA_TYPE),
+    cudaMemcpy(C4Gpu, C4, np * np * sizeof(DATA_TYPE), cudaMemcpyHostToDevice);
+    cudaMemcpy(sumGpu, sum_outputFromGpu, nr * nq * np * sizeof(DATA_TYPE),
                cudaMemcpyHostToDevice);
 
     dim3 block(DIM_THREAD_BLOCK_X, DIM_THREAD_BLOCK_Y);
-    dim3 grid((unsigned int)ceil(((float)NP) / ((float)block.x)),
-              (unsigned int)ceil(((float)NR) / ((float)block.y)));
+    dim3 grid((unsigned int)ceil(((float)np) / ((float)block.x)),
+              (unsigned int)ceil(((float)nr) / ((float)block.y)));
 
+    /* Start timer. */
     polybench_start_instruments;
 
-    for (int r = 0; r < NR; r++) {
-        doitgen_kernel1<<<grid, block>>>(sumGpu, AGpu, C4Gpu, r);
+    for (int r = 0; r < nr; r++) {
+        doitgen_kernel1<<<grid, block>>>(nr, nq, np, sumGpu, AGpu, C4Gpu, r);
         cudaDeviceSynchronize();
-        doitgen_kernel2<<<grid, block>>>(sumGpu, AGpu, C4Gpu, r);
+        doitgen_kernel2<<<grid, block>>>(nr, nq, np, sumGpu, AGpu, C4Gpu, r);
         cudaDeviceSynchronize();
     }
 
+    /* Stop and print timer. */
     printf("GPU_Seconds=");
     polybench_stop_instruments;
     polybench_print_instruments;
@@ -130,30 +146,44 @@ void doitgenCuda(DATA_TYPE* A, DATA_TYPE* C4, DATA_TYPE* sum,
 }
 
 int main(int argc, char* argv[]) {
-    DATA_TYPE* A = (DATA_TYPE*)malloc(NR * NQ * NP * sizeof(DATA_TYPE));
-    DATA_TYPE* C4 = (DATA_TYPE*)malloc(NP * NP * sizeof(DATA_TYPE));
-    DATA_TYPE* sum = (DATA_TYPE*)malloc(NR * NQ * NP * sizeof(DATA_TYPE));
-    DATA_TYPE* sum_outputFromGpu =
-        (DATA_TYPE*)malloc(NR * NQ * NP * sizeof(DATA_TYPE));
+    /* Retrieve problem size. */
+    int nr = NR;
+    int nq = NQ;
+    int np = NP;
 
-    init_array(A, C4);
+    /* Variable declaration/allocation. */
+    POLYBENCH_3D_ARRAY_DECL(A, DATA_TYPE, NR, NQ, NP, nr, nq, np);
+    POLYBENCH_3D_ARRAY_DECL(sum, DATA_TYPE, NR, NQ, NP, nr, nq, np);
+    POLYBENCH_3D_ARRAY_DECL(sum_outputFromGpu, DATA_TYPE, NR, NQ, NP, nr, nq,
+                            np);
+    POLYBENCH_2D_ARRAY_DECL(C4, DATA_TYPE, NP, NP, np, np);
 
-    doitgenCuda(A, C4, sum, sum_outputFromGpu);
+    /* Initialize array(s). */
+    init_array(nr, nq, np, POLYBENCH_ARRAY(A), POLYBENCH_ARRAY(C4));
 
+    doitgenCuda(nr, nq, np, POLYBENCH_ARRAY(A), POLYBENCH_ARRAY(C4),
+                POLYBENCH_ARRAY(sum_outputFromGpu));
+
+    /* Start timer. */
     polybench_start_instruments;
 
-    doitgenCPU(sum, A, C4);
+    /* Run kernel on CPU */
+    kernel_doitgenCpu(nr, nq, np, POLYBENCH_ARRAY(A), POLYBENCH_ARRAY(C4),
+                      POLYBENCH_ARRAY(sum));
 
+    /* Stop and print timer. */
     printf("CPU_Seconds=");
     polybench_stop_instruments;
     polybench_print_instruments;
 
-    compareResults(sum, sum_outputFromGpu);
+    compareResults(nr, nq, np, POLYBENCH_ARRAY(sum),
+                   POLYBENCH_ARRAY(sum_outputFromGpu));
 
+    /* Garbage collection */
     POLYBENCH_FREE_ARRAY(A);
-    POLYBENCH_FREE_ARRAY(C4);
     POLYBENCH_FREE_ARRAY(sum);
     POLYBENCH_FREE_ARRAY(sum_outputFromGpu);
+    POLYBENCH_FREE_ARRAY(C4);
 
     return 0;
 }

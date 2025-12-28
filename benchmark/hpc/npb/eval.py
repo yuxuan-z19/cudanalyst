@@ -11,7 +11,7 @@ from cugedit.result import *
 SUITE_ROOT = Path(__file__).parent / "src"
 COMMON_INC_DIRS = ["common", "config", "sys", "Makefile"]
 TESTCLASS = ["S", "W"]
-DATACLASS = list(string.ascii_uppercase[:5])
+DATACLASS = list(string.ascii_uppercase[:3])
 NUM_RUNS = 3
 
 
@@ -24,8 +24,8 @@ class NPBMeta(ResultMeta):
 @dataclass
 class NPBResult(Result):
     mops_improve_list: list[float] = field(default_factory=list)
-    base_result: ResultMeta = None
-    custom_result: ResultMeta = None
+    base_result: NPBMeta = None
+    custom_result: NPBMeta = None
 
 
 def prepare_task_env(tmpdir_path: Path, problem_dir: Path, name: str = "base") -> Path:
@@ -44,36 +44,37 @@ def parse_result(output: str):
     result = {}
     for line in output.strip().splitlines():
         key, value = line.split("=")
-        result[key] = float(value) if "." in value else bool(value)
+        result[key] = float(value) if "." in value else int(value)
     return result
 
 
 def exec_impl(
-    task_name: str, task_dir: Path, data_class: str, gpu_id: int = 0, num_runs: int = 1
+    task_name: str, task_dir: Path, case: str, gpu_id: int = 0, num_runs: int = 1
 ) -> NPBMeta:
-    mops_list = []
     try:
-        run_cmd(["make", task_name, f"CLASS={data_class}"], task_dir, gpu_id)
+        run_cmd(["make", task_name, f"CLASS={case}"], task_dir, gpu_id)
     except subprocess.CalledProcessError as e:
         return NPBMeta(error=parse_cmd_failure(e))
 
+    exec = (task_dir / f"bin/{task_name.lower()}.{case}").as_posix()
+    mops_list = []
+
     for _ in range(num_runs):
         try:
-            run_proc = run_cmd(
-                [f"./bin/{task_name.lower()}.{data_class}"], task_dir, gpu_id
-            )
+            run_proc = run_cmd([exec], task_dir, gpu_id)
         except subprocess.CalledProcessError as e:
             return NPBMeta(Status.COMPILE, error=parse_cmd_failure(e, stage=Stage.RUN))
 
         result = parse_result(run_proc.stdout)
-        if not result.get("verified", False):
+        if result.get("verified", 0) <= 0:
             return NPBMeta(
                 Status.COMPILE,
                 error=parse_cmd_failure(ResultConstant.ERR_MISMATCH, Stage.VERIFY),
             )
-        mops_list.append(result.get("Mops", ResultConstant.INVALID_INT))
+        mops_list.append(result.get("Mops", ResultConstant.INVALID_FLOAT))
 
-    return NPBMeta(mops_res_list=[mops_list])
+    med_mops = stats_med(mops_list)
+    return NPBMeta(med_mops_list=[med_mops], mops_res_list=[mops_list])
 
 
 def execute(
@@ -97,7 +98,7 @@ def execute(
         res = exec_impl(task_name, task_dir, case, gpu_id, num_runs)
         if res.status != Status.PASS:
             return res
-        med_mops_list.append(stats_med(res.mops_res_list[0]))
+        med_mops_list.append(res.med_mops_list[0])
         mops_res_list.append(res.mops_res_list[0])
 
     return NPBMeta(med_mops_list=med_mops_list, mops_res_list=mops_res_list)
@@ -123,12 +124,15 @@ def evaluate(program_path: os.PathLike, problem_dir: os.PathLike):
             return NPBResult(
                 status=base_result.status,
                 error=f"Base build/run failed: {base_result.error}",
+                base_result=base_result,
             )
         custom_result = execute(program_path, task_name, custom_dir, gpu_id)
         if custom_result.status != Status.PASS:
             return NPBResult(
                 status=custom_result.status,
-                error=f"Base build/run failed: {custom_result.error}",
+                error=f"Custom build/run failed: {custom_result.error}",
+                base_result=base_result,
+                custom_result=custom_result,
             )
 
         # * eval perf
@@ -138,10 +142,9 @@ def evaluate(program_path: os.PathLike, problem_dir: os.PathLike):
         base_med_mops = base_result.med_mops_list
         custom_med_mops = custom_result.med_mops_list
         mops_improv_list = [c / b for c, b in zip(custom_med_mops, base_med_mops)]
-        combined_score = stats_med(mops_improv_list)
 
         return NPBResult(
-            combined_score=combined_score,
+            combined_score=min(mops_improv_list),
             mops_improve_list=mops_improv_list,
             base_result=base_result,
             custom_result=custom_result,

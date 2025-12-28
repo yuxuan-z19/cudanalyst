@@ -1,4 +1,9 @@
+DATASET ?= STANDARD
+DATASET_MACRO := $(DATASET)_DATASET
+
+EXECUTABLE := ${TASK}.${DATASET}
+
 all:
-	nvcc -O3 ${CUFILES} -o ${EXECUTABLE} -I "../../common" ${LDFLAGS}
+	nvcc -O3 ${CUFILES} -D${DATASET_MACRO} -I${COMMON_PATH} ${LDFLAGS} -o ${EXECUTABLE}
 clean:
-	rm -f *~ *.exe
+	rm -f *~ *.${DATASET}

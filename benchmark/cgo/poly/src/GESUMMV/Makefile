@@ -1,4 +1,5 @@
-EXECUTABLE := GESUMMV.exe
+TASK := GESUMMV
 CUFILES := gesummv.cu sol.cu
+COMMON_PATH := ../../common
 
-include ../../common/common.mk
+include ${COMMON_PATH}/common.mk
