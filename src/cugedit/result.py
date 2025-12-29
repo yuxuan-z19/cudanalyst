@@ -1,7 +1,11 @@
+import json
+import os
+from collections import defaultdict
 from dataclasses import InitVar, asdict, dataclass, field, is_dataclass
 from enum import Enum
 from functools import wraps
-from typing import Final, final
+from pathlib import Path
+from typing import Any, Final, final
 
 
 class Status(str, Enum):
@@ -56,3 +60,45 @@ def return_asdict(func):
         return res
 
     return wrapper
+
+
+def get_evolve_stats(
+    output_dir: os.PathLike,
+    ckpt_interval: int | None = None,
+):
+    if ckpt_interval is not None and ckpt_interval <= 0:
+        raise ValueError("ckpt_interval must be None or a positive integer")
+
+    base = Path(output_dir)
+    if base.name != "checkpoints":
+        base = base / "checkpoints"
+
+    if not base.exists():
+        raise FileNotFoundError(base)
+
+    stats = defaultdict(
+        lambda: {
+            "total": 0,
+            "scores": [],
+            **{s.value: 0 for s in Status},
+        }
+    )
+
+    for sample in base.rglob("programs/*.json"):
+        with open(sample) as f:
+            d = json.load(f)
+
+        metrics = d["metrics"]
+        status = metrics["status"]
+
+        if ckpt_interval is None:
+            key = d.get("generation", 0)
+        else:
+            key = d.get("iteration_found", 0) // ckpt_interval
+
+        s = stats[key]
+        s["total"] += 1
+        s[status] += 1
+        s["scores"].append(metrics["combined_score"])
+
+    return stats
