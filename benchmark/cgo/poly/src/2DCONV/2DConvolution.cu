@@ -9,6 +9,7 @@
  */
 
 #include <cuda.h>
+#include <nvtx3/nvToolsExt.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -86,6 +87,7 @@ void convolution2DCuda(int ni, int nj,
     dim3 grid((size_t)ceil(((float)NI) / ((float)block.x)),
               (size_t)ceil(((float)NJ) / ((float)block.y)));
 
+    nvtxRangePushA("cugedit");
     polybench_start_instruments;
 
     convolution2D_kernel<<<grid, block>>>(ni, nj, A_gpu, B_gpu);
@@ -96,6 +98,7 @@ void convolution2DCuda(int ni, int nj,
 
     polybench_stop_instruments;
     polybench_print_instruments;
+    nvtxRangePop();
 
     cudaMemcpy(B_outputFromGpu, B_gpu, sizeof(DATA_TYPE) * NI * NJ,
                cudaMemcpyDeviceToHost);

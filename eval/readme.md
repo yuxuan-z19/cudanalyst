@@ -14,6 +14,10 @@
 }
 ```
 
-### Changelog (latest)
+### Changelog
 
-- {251220} Commit [d09052b](https://github.com/yuxuan-z19/openevolve/commit/d09052bb3f149fd4dc0d480932bf988dd251df56): Add `problem_dir` in `EvaluatorConfig`
+The `cugedit` branch is kept in sync with upstream `main`. All fork-specific, behavior-changing updates are documented below.
+
+- Commit [8f0d70e](https://github.com/yuxuan-z19/openevolve/commit/8f0d70e): Render plan decisions as artifacts
+- Commit [df9fb3c](https://github.com/yuxuan-z19/openevolve/commit/df9fb3c): Add `analyst_config` in `EvaluatorConfig`
+- Commit [d09052b](https://github.com/yuxuan-z19/openevolve/commit/d09052b): Add `problem_dir` in `EvaluatorConfig`

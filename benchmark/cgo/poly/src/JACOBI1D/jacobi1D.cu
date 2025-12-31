@@ -19,6 +19,8 @@
 
 #define POLYBENCH_TIME 1
 
+#include <nvtx3/nvToolsExt.h>
+
 #include "../../common/polybench.h"
 #include "../../common/polybenchUtilFuncts.h"
 #include "jacobi1D.cuh"
@@ -83,6 +85,7 @@ void runJacobi1DCUDA(int tsteps, int n, DATA_TYPE POLYBENCH_1D(A, N, n),
     dim3 grid((unsigned int)ceil(((float)N) / ((float)block.x)), 1);
 
     /* Start timer. */
+    nvtxRangePushA("cugedit");
     polybench_start_instruments;
 
     for (int t = 0; t < _PB_TSTEPS; t++) {
@@ -96,6 +99,7 @@ void runJacobi1DCUDA(int tsteps, int n, DATA_TYPE POLYBENCH_1D(A, N, n),
     printf("GPU_Seconds=");
     polybench_stop_instruments;
     polybench_print_instruments;
+    nvtxRangePop();
 
     cudaMemcpy(A_outputFromGpu, Agpu, sizeof(DATA_TYPE) * N,
                cudaMemcpyDeviceToHost);

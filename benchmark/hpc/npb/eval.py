@@ -5,6 +5,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from cugedit import AnalysisCfg, ToolContext, generate_plan
 from cugedit.helper import *
 from cugedit.result import *
 
@@ -49,32 +50,54 @@ def parse_result(output: str):
 
 
 def exec_impl(
-    task_name: str, task_dir: Path, case: str, gpu_id: int = 0, num_runs: int = 1
+    task_name: str,
+    task_dir: Path,
+    case: str,
+    gpu_id: int,
+    num_runs: int,
+    config: AnalysisCfg = None,
 ) -> NPBMeta:
+    ctx = ToolContext(code_path=(task_dir / task_name / "sol.cu"), cwd=task_dir)
+
+    make_cmd = ["make", task_name, f"CLASS={case}"]
+    ctx.cmd = make_cmd
     try:
-        run_cmd(["make", task_name, f"CLASS={case}"], task_dir, gpu_id)
+        run_cmd(make_cmd, task_dir, gpu_id)
     except subprocess.CalledProcessError as e:
-        return NPBMeta(error=parse_cmd_failure(e))
+        error = parse_cmd_failure(e)
+        return NPBMeta(error=error, reports=generate_plan(config, ctx, error))
 
-    exec = (task_dir / f"bin/{task_name.lower()}.{case}").as_posix()
+    exec_cmd = [(task_dir / f"bin/{task_name.lower()}.{case}").as_posix()]
+    ctx.cmd = exec_cmd
+
     mops_list = []
-
     for _ in range(num_runs):
         try:
-            run_proc = run_cmd([exec], task_dir, gpu_id)
+            run_proc = run_cmd(exec_cmd, task_dir, gpu_id)
         except subprocess.CalledProcessError as e:
-            return NPBMeta(Status.COMPILE, error=parse_cmd_failure(e, stage=Stage.RUN))
+            error = parse_cmd_failure(e, stage=Stage.RUN)
+            return NPBMeta(
+                Status.COMPILE,
+                error=error,
+                reports=generate_plan(config, ctx, error),
+            )
 
         result = parse_result(run_proc.stdout)
         if result.get("verified", 0) <= 0:
+            error = parse_cmd_failure(ResultConstant.ERR_MISMATCH, Stage.VERIFY)
             return NPBMeta(
                 Status.COMPILE,
-                error=parse_cmd_failure(ResultConstant.ERR_MISMATCH, Stage.VERIFY),
+                error=error,
+                reports=generate_plan(config, ctx, error),
             )
         mops_list.append(result.get("Mops", ResultConstant.INVALID_FLOAT))
 
     med_mops = stats_med(mops_list)
-    return NPBMeta(med_mops_list=[med_mops], mops_res_list=[mops_list])
+    return NPBMeta(
+        reports=generate_plan(config, ctx),
+        med_mops_list=[med_mops],
+        mops_res_list=[mops_list],
+    )
 
 
 def execute(
@@ -83,29 +106,56 @@ def execute(
     task_dir: Path,
     gpu_id: int = 0,
     num_runs: int = 1,
+    config: AnalysisCfg = None,
 ):
     (task_dir / task_name / "sol.cu").write_text(
-        strip_codeblock(program_path.read_text())
+        extract_codeblock(program_path.read_text())
     )
+
+    def _exec_case(case, *, analyst=False):
+        return exec_impl(
+            task_name,
+            task_dir,
+            case,
+            gpu_id,
+            num_runs,
+            config if analyst else None,
+        )
+
+    def _run_or_generate_plan(case):
+        res = _exec_case(case)
+        if res.status == Status.PASS:
+            return res
+        return _exec_case(case, analyst=True)
+
     for case in TESTCLASS:
-        res = exec_impl(task_name, task_dir, case, gpu_id, num_runs)
+        res = _run_or_generate_plan(case)
         if res.status != Status.PASS:
             return res
 
     med_mops_list = []
     mops_res_list = []
     for case in DATACLASS:
-        res = exec_impl(task_name, task_dir, case, gpu_id, num_runs)
+        res = _run_or_generate_plan(case)
         if res.status != Status.PASS:
             return res
+
         med_mops_list.append(res.med_mops_list[0])
         mops_res_list.append(res.mops_res_list[0])
 
-    return NPBMeta(med_mops_list=med_mops_list, mops_res_list=mops_res_list)
+    reports = []
+    if num_runs >= NUM_RUNS:
+        reports = _exec_case(DATACLASS[-1], analyst=True).reports
+
+    return NPBMeta(
+        reports=reports, med_mops_list=med_mops_list, mops_res_list=mops_res_list
+    )
 
 
 @return_asdict
-def evaluate(program_path: os.PathLike, problem_dir: os.PathLike):
+def evaluate(
+    program_path: os.PathLike, problem_dir: os.PathLike, config: AnalysisCfg = None
+):
     program_path = Path(program_path)
     problem_dir = Path(problem_dir)
     task_name = problem_dir.stem
@@ -126,18 +176,24 @@ def evaluate(program_path: os.PathLike, problem_dir: os.PathLike):
                 error=f"Base build/run failed: {base_result.error}",
                 base_result=base_result,
             )
-        custom_result = execute(program_path, task_name, custom_dir, gpu_id)
+
+        custom_result = execute(
+            program_path, task_name, custom_dir, gpu_id, config=config
+        )
         if custom_result.status != Status.PASS:
             return NPBResult(
                 status=custom_result.status,
                 error=f"Custom build/run failed: {custom_result.error}",
+                reports=custom_result.drain_reports(),
                 base_result=base_result,
                 custom_result=custom_result,
             )
 
         # * eval perf
         base_result = execute(base_program, task_name, base_dir, gpu_id, NUM_RUNS)
-        custom_result = execute(program_path, task_name, custom_dir, gpu_id, NUM_RUNS)
+        custom_result = execute(
+            program_path, task_name, custom_dir, gpu_id, NUM_RUNS, config
+        )
 
         base_med_mops = base_result.med_mops_list
         custom_med_mops = custom_result.med_mops_list
@@ -145,6 +201,7 @@ def evaluate(program_path: os.PathLike, problem_dir: os.PathLike):
 
         return NPBResult(
             combined_score=min(mops_improv_list),
+            reports=custom_result.drain_reports(),
             mops_improve_list=mops_improv_list,
             base_result=base_result,
             custom_result=custom_result,

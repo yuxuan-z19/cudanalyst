@@ -19,6 +19,8 @@
 
 #define POLYBENCH_TIME 1
 
+#include <nvtx3/nvToolsExt.h>
+
 #include "../../common/polybench.h"
 #include "../../common/polybenchUtilFuncts.h"
 #include "gesummv.cuh"
@@ -118,6 +120,7 @@ void gesummvCuda(int n, DATA_TYPE alpha, DATA_TYPE beta,
     dim3 grid((unsigned int)ceil(((float)N) / ((float)block.x)), 1);
 
     /* Start timer. */
+    nvtxRangePushA("cugedit");
     polybench_start_instruments;
 
     gesummv_kernel<<<grid, block>>>(n, alpha, beta, A_gpu, B_gpu, tmp_gpu,
@@ -128,6 +131,7 @@ void gesummvCuda(int n, DATA_TYPE alpha, DATA_TYPE beta,
     printf("GPU_Seconds=");
     polybench_stop_instruments;
     polybench_print_instruments;
+    nvtxRangePop();
 
     cudaMemcpy(y_outputFromGpu, y_gpu, sizeof(DATA_TYPE) * N,
                cudaMemcpyDeviceToHost);

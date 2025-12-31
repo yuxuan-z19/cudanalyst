@@ -260,6 +260,7 @@ __marimo__/
 # intermediate outputs
 *.txt
 *.bin
+*.bak
 
 # CUDA
 *.i
@@ -289,8 +290,9 @@ CMakeUserPresets.json
 cmake-build-*
 
 # exp outputs
-out*/
+out*
 test*
+log*
 
 # polybench executables
 *.MINI

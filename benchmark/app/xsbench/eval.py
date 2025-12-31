@@ -5,6 +5,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from cugedit import AnalysisCfg, ToolContext, generate_plan
 from cugedit.helper import *
 from cugedit.result import *
 
@@ -33,7 +34,7 @@ def get_lookup_rate(raw: str):
 
 
 @return_asdict
-def evaluate(program_path: os.PathLike):
+def evaluate(program_path: os.PathLike, config: AnalysisCfg = None):
     program_path = Path(program_path)
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -42,54 +43,72 @@ def evaluate(program_path: os.PathLike):
         dst_path = tmp_path / "src"
         shutil.copytree(SRC_DIR, dst_path)
 
-        (dst_path / "Solution.cu").write_text(strip_codeblock(program_path.read_text()))
+        code_path = dst_path / "Solution.cu"
+        code_path.write_text(extract_codeblock(program_path.read_text()))
+
+        ctx = ToolContext(code_path=code_path, cwd=dst_path)
 
         gpu_id = pick_idle_gpu()
 
+        make_cmd = ["make"]
+        ctx.cmd = make_cmd
         try:
-            run_cmd(["make"], dst_path, gpu_id)
+            run_cmd(make_cmd, dst_path, gpu_id)
         except subprocess.CalledProcessError as e:
-            return XsbenchResult(error=parse_cmd_failure(e))
+            error = parse_cmd_failure(e)
+            return XsbenchResult(error=error, reports=generate_plan(config, ctx, error))
 
         def _exec_impl(cmd: list[str], niter: int = 1):
             lookup_list = []
+            ctx.cmd = cmd
             for _ in range(niter):
                 try:
                     proc = run_cmd(cmd, dst_path, gpu_id)
                 except Exception as e:
-                    return XsbenchMeta(
-                        status=Status.COMPILE, error=parse_cmd_failure(e, Stage.RUN)
-                    )
-                is_valid, lookup = get_lookup_rate(proc.stdout)
-                if not is_valid:
+                    error = parse_cmd_failure(e, Stage.RUN)
                     return XsbenchMeta(
                         status=Status.COMPILE,
-                        error=parse_cmd_failure(
-                            ResultConstant.ERR_MISMATCH, Stage.VERIFY
-                        ),
+                        error=error,
+                        reports=generate_plan(config, ctx, error),
+                    )
+
+                is_valid, lookup = get_lookup_rate(proc.stdout)
+                if not is_valid:
+                    error = parse_cmd_failure(ResultConstant.ERR_MISMATCH, Stage.VERIFY)
+                    return XsbenchMeta(
+                        status=Status.COMPILE,
+                        error=error,
+                        reports=generate_plan(config, ctx, error),
                     )
                 lookup_list.append(lookup)
             return XsbenchMeta(
                 med_lookup=stats_med(lookup_list), lookup_list=lookup_list
             )
 
-        test_cases = {
+        test_cmds = {
             "base": ["./XSBench.exe", "-m", "event", "-k", "6"],
             "custom": ["./XSBench.exe", "-m", "event", "-k", "7"],
         }
 
         # * check correctness
-        for _, cmd in test_cases.items():
+        for _, cmd in test_cmds.items():
             if (res := _exec_impl(cmd)) and res.status != Status.PASS:
-                return XsbenchResult(status=res.status, error=res.error)
+                return XsbenchResult(
+                    status=res.status, error=res.error, reports=res.drain_reports()
+                )
 
         # * eval perf
-        base_result = _exec_impl(test_cases["base"], NITER)
-        custom_result = _exec_impl(test_cases["custom"], NITER)
+        base_result = _exec_impl(test_cmds["base"], NITER)
+        custom_result = _exec_impl(test_cmds["custom"], NITER)
 
         score = custom_result.med_lookup / base_result.med_lookup
+
+        ctx.cmd = test_cmds["custom"]
         return XsbenchResult(
-            combined_score=score, base_result=base_result, custom_result=custom_result
+            combined_score=score,
+            reports=generate_plan(config, ctx),
+            base_result=base_result,
+            custom_result=custom_result,
         )
 
 

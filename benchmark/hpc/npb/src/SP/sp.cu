@@ -59,6 +59,7 @@
  */
 
 #include <cuda.h>
+#include <nvtx3/nvToolsExt.h>
 
 #include "sp.cuh"
 
@@ -318,6 +319,7 @@ int main(int argc, char** argv) {
     timer_clear(PROFILING_Y_SOLVE);
     timer_clear(PROFILING_Z_SOLVE);
 #endif
+    nvtxRangePushA("cugedit");
     timer_start(PROFILING_TOTAL_TIME); /*#start_timer*/
     for (step = 1; step <= niter; step++) {
         // if ((step % 20) == 0 || step == 1) {
@@ -327,6 +329,7 @@ int main(int argc, char** argv) {
     }
     timer_stop(PROFILING_TOTAL_TIME); /*#stop_timer*/
     tmax = timer_read(PROFILING_TOTAL_TIME);
+    nvtxRangePop();
     verify_gpu(niter, &class_npb, &verified);
     if (tmax != 0.0) {
         n3 = grid_points[0] * grid_points[1] * grid_points[2];

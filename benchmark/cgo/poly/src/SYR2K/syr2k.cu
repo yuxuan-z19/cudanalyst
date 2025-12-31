@@ -18,6 +18,8 @@
 
 #define POLYBENCH_TIME 1
 
+#include <nvtx3/nvToolsExt.h>
+
 #include "../../common/polybench.h"
 #include "../../common/polybenchUtilFuncts.h"
 #include "syr2k.cuh"
@@ -107,6 +109,7 @@ void syr2kCuda(int ni, int nj, DATA_TYPE alpha, DATA_TYPE beta,
               (size_t)(ceil(((float)NI) / ((float)DIM_THREAD_BLOCK_Y))));
 
     /* Start timer. */
+    nvtxRangePushA("cugedit");
     polybench_start_instruments;
 
     syr2k_kernel<<<grid, block>>>(ni, nj, alpha, beta, A_gpu, B_gpu, C_gpu);
@@ -116,6 +119,7 @@ void syr2kCuda(int ni, int nj, DATA_TYPE alpha, DATA_TYPE beta,
     printf("GPU_Seconds=");
     polybench_stop_instruments;
     polybench_print_instruments;
+    nvtxRangePop();
 
     cudaMemcpy(C_outputFromGpu, C_gpu, sizeof(DATA_TYPE) * NI * NI,
                cudaMemcpyDeviceToHost);

@@ -5,6 +5,7 @@ import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from cugedit import AnalysisCfg, ToolContext, generate_plan
 from cugedit.helper import *
 from cugedit.result import *
 
@@ -44,29 +45,47 @@ def parse_result(output: str):
     return result
 
 
-def exec_impl(task_dir: Path, case: str, gpu_id: int = 0, num_runs: int = 1):
+def exec_impl(
+    task_dir: Path,
+    case: str,
+    gpu_id: int,
+    num_runs: int,
+    config: AnalysisCfg = None,
+):
+    ctx = ToolContext(code_path=(task_dir / "sol.cu"), cwd=task_dir)
+    make_cmd = ["make", f"DATASET={case}"]
     try:
-        run_cmd(["make", f"DATASET={case}"], task_dir, gpu_id)
+        run_cmd(make_cmd, task_dir, gpu_id)
     except subprocess.CalledProcessError as e:
-        return PolyMeta(error=parse_cmd_failure(e, Stage.BUILD))
+        ctx.cmd = make_cmd
+        error = parse_cmd_failure(e, Stage.BUILD)
+        return PolyMeta(error=error, reports=generate_plan(config, ctx, error))
 
-    exec = (task_dir / f"{task_dir.name}.{case}").as_posix()
+    exec_cmd = [(task_dir / f"{task_dir.name}.{case}").as_posix()]
+    ctx.cmd = exec_cmd
+
     gpu_sec_list = []
     mismatch_cnt_list = []
     for _ in range(num_runs):
         try:
-            run_proc = run_cmd([exec], task_dir, gpu_id)
+            run_proc = run_cmd(exec_cmd, task_dir, gpu_id)
             result = parse_result(run_proc.stdout)
             gpu_sec_list.append(result.get("GPU_Seconds", ResultConstant.INVALID_FLOAT))
             mismatch_cnt_list.append(
                 result.get("Mismatch_Count", ResultConstant.INVALID_INT)
             )
         except subprocess.CalledProcessError as e:
-            return PolyMeta(Status.COMPILE, error=parse_cmd_failure(e, Stage.RUN))
+            error = parse_cmd_failure(e, Stage.RUN)
+            return PolyMeta(
+                Status.COMPILE,
+                error=error,
+                reports=generate_plan(config, ctx, error),
+            )
 
     med_gpu_sec = stats_med(gpu_sec_list)
     med_mismatch_cnt = stats_med(mismatch_cnt_list)
     return PolyMeta(
+        reports=generate_plan(config, ctx),
         med_gpu_sec=[med_gpu_sec],
         gpu_sec_per_case=[gpu_sec_list],
         med_mismatch_cnt=[med_mismatch_cnt],
@@ -79,11 +98,28 @@ def execute(
     task_dir: Path,
     gpu_id: int = 0,
     num_runs: int = 1,
+    config: AnalysisCfg = None,
+    base_result: PolyMeta = None,
 ) -> PolyMeta:
-    (task_dir / "sol.cu").write_text(strip_codeblock(program_path.read_text()))
+    (task_dir / "sol.cu").write_text(extract_codeblock(program_path.read_text()))
+
+    def _exec_case(case, *, analyst=False):
+        return exec_impl(
+            task_dir,
+            case,
+            gpu_id,
+            num_runs,
+            config if analyst else None,
+        )
+
+    def _run_or_generate_plan(case):
+        res = _exec_case(case)
+        if res.status == Status.PASS:
+            return res
+        return _exec_case(case, analyst=True)
 
     for case in TEST_DATASET:
-        res = exec_impl(task_dir, case, gpu_id, num_runs)
+        res = _run_or_generate_plan(case)
         if res.status != Status.PASS:
             return res
 
@@ -93,15 +129,35 @@ def execute(
     mismatch_cnt_per_case = []
 
     for case in EVAL_DATASET:
-        res = exec_impl(task_dir, case, gpu_id, num_runs)
+        res = _run_or_generate_plan(case)
         if res.status != Status.PASS:
             return res
+
         med_gpu_sec.append(res.med_gpu_sec[0])
         gpu_sec_per_case.append(res.gpu_sec_per_case[0])
         med_mismatch_cnt.append(res.med_mismatch_cnt[0])
         mismatch_cnt_per_case.append(res.mismatch_cnt_per_case[0])
 
+    if base_result and not elemwise_equal(
+        base_result.med_mismatch_cnt, med_mismatch_cnt
+    ):
+        error = parse_cmd_failure(ResultConstant.ERR_MISMATCH, Stage.VERIFY)
+        return PolyMeta(
+            Status.COMPILE,
+            error=error,
+            reports=generate_plan(
+                config, ToolContext(program_path, cwd=task_dir), error
+            ),
+            med_mismatch_cnt=med_mismatch_cnt,
+            mismatch_cnt_per_case=mismatch_cnt_per_case,
+        )
+
+    reports = []
+    if num_runs >= NUM_RUNS:
+        reports = _exec_case(EVAL_DATASET[-1], analyst=True).reports
+
     return PolyMeta(
+        reports=reports,
         med_gpu_sec=med_gpu_sec,
         gpu_sec_per_case=gpu_sec_per_case,
         med_mismatch_cnt=med_mismatch_cnt,
@@ -110,7 +166,9 @@ def execute(
 
 
 @return_asdict
-def evaluate(program_path: os.PathLike, problem_dir: os.PathLike):
+def evaluate(
+    program_path: os.PathLike, problem_dir: os.PathLike, config: AnalysisCfg = None
+):
     program_path = Path(program_path)
     problem_dir = Path(problem_dir)
 
@@ -133,34 +191,36 @@ def evaluate(program_path: os.PathLike, problem_dir: os.PathLike):
             return PolyResult(
                 status=base_result.status,
                 error=f"Base build/run failed: {base_result.error}",
+                base_result=base_result,
             )
 
-        custom_result = execute(program_path, custom_task_dir, gpu_id)
+        custom_result = execute(
+            program_path,
+            custom_task_dir,
+            gpu_id,
+            config=config,
+            base_result=base_result,
+        )
+        reports = custom_result.drain_reports()
         if custom_result.status != Status.PASS:
             return PolyResult(
                 status=custom_result.status,
                 error=f"Custom build/run failed: {custom_result.error}",
-            )
-
-        if not elemwise_equal(
-            base_result.med_mismatch_cnt, custom_result.med_mismatch_cnt
-        ):
-            return PolyResult(
-                status=Status.COMPILE,
-                error=parse_cmd_failure(ResultConstant.ERR_MISMATCH, Stage.VERIFY),
+                reports=reports,
                 base_result=base_result,
                 custom_result=custom_result,
             )
 
         # * eval perf
         base_result = execute(base_program, base_task_dir, gpu_id, NUM_RUNS)
-        custom_result = execute(program_path, custom_task_dir, gpu_id, NUM_RUNS)
+        custom_result = execute(program_path, custom_task_dir, gpu_id, NUM_RUNS, config)
         speedup_list = [
             b / c for b, c in zip(base_result.med_gpu_sec, custom_result.med_gpu_sec)
         ]
 
         return PolyResult(
             combined_score=min(speedup_list),
+            reports=custom_result.drain_reports(),
             speedup_list=speedup_list,
             base_result=base_result,
             custom_result=custom_result,

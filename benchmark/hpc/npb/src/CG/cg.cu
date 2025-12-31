@@ -58,6 +58,7 @@
  */
 
 #include <cuda.h>
+#include <nvtx3/nvToolsExt.h>
 
 #include "cg.cuh"
 
@@ -341,6 +342,7 @@ int main(int argc, char** argv) {
     zeta = 0.0;
 
     setup_gpu();
+    nvtxRangePushA("cugedit");
     timer_start(PROFILING_TOTAL_TIME);
 
     /*
@@ -383,6 +385,7 @@ int main(int argc, char** argv) {
      */
 
     t = timer_read(PROFILING_TOTAL_TIME);
+    nvtxRangePop();
 
     // printf(" Benchmark completed\n");
 

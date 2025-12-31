@@ -60,6 +60,7 @@
  */
 
 #include <cuda.h>
+#include <nvtx3/nvToolsExt.h>
 
 #include "bt.cuh"
 
@@ -314,8 +315,9 @@ int main(int argc, char* argv[]) {
     cudaMemcpy(u_device, u, size_u, cudaMemcpyHostToDevice);
     cudaMemcpy(forcing_device, forcing, size_forcing, cudaMemcpyHostToDevice);
 
-    timer_clear();
+    nvtxRangePushA("cugedit");
 
+    timer_clear();
     timer_start();
 
     for (step = 1; step <= niter; step++) {
@@ -327,6 +329,8 @@ int main(int argc, char* argv[]) {
 
     timer_stop();
     tmax = timer_read();
+
+    nvtxRangePop();
 
     cudaMemcpy(rhs, rhs_device, size_rhs, cudaMemcpyDeviceToHost);
     cudaMemcpy(u, u_device, size_u, cudaMemcpyDeviceToHost);

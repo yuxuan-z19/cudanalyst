@@ -60,6 +60,7 @@
  */
 
 #include <cuda.h>
+#include <nvtx3/nvToolsExt.h>
 
 #include "mg.cuh"
 
@@ -261,6 +262,7 @@ int main(int argc, char** argv) {
     timer_clear(PROFILING_ZERO3);
 #endif
 
+    nvtxRangePushA("cugedit");
     timer_start(PROFILING_TOTAL_TIME);
 
     resid_gpu(u_device, v_device, r_device, n1, n2, n3, a_device, k);
@@ -274,6 +276,7 @@ int main(int argc, char** argv) {
 
     timer_stop(PROFILING_TOTAL_TIME);
     t = timer_read(PROFILING_TOTAL_TIME);
+    nvtxRangePop();
 
     verified = FALSE;
     verify_value = 0.0;

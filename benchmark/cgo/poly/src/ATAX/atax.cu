@@ -11,6 +11,7 @@
 #include <assert.h>
 #include <cuda.h>
 #include <math.h>
+#include <nvtx3/nvToolsExt.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
@@ -105,6 +106,7 @@ void ataxGpu(int nx, int ny, DATA_TYPE POLYBENCH_2D(A, NX, NY, nx, ny),
     dim3 grid1((size_t)(ceil(((float)NX) / ((float)block.x))), 1);
     dim3 grid2((size_t)(ceil(((float)NY) / ((float)block.x))), 1);
 
+    nvtxRangePushA("cugedit");
     /* Start timer. */
     polybench_start_instruments;
 
@@ -117,6 +119,7 @@ void ataxGpu(int nx, int ny, DATA_TYPE POLYBENCH_2D(A, NX, NY, nx, ny),
     printf("GPU_Seconds=");
     polybench_stop_instruments;
     polybench_print_instruments;
+    nvtxRangePop();
 
     cudaMemcpy(y_outputFromGpu, y_gpu, sizeof(DATA_TYPE) * NX,
                cudaMemcpyDeviceToHost);

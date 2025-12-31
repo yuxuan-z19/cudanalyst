@@ -60,6 +60,7 @@
  */
 
 #include <cuda.h>
+#include <nvtx3/nvToolsExt.h>
 
 #include "lu.cuh"
 
@@ -2521,6 +2522,7 @@ void ssor_gpu(int niter) {
     timer_clear(PROFILING_SSOR_1);
     timer_clear(PROFILING_SSOR_2);
 #endif
+    nvtxRangePushA("cugedit");
     timer_start(PROFILING_TOTAL_TIME); /*#start_timer*/
     /*
      * ---------------------------------------------------------------------
@@ -2673,6 +2675,7 @@ void ssor_gpu(int niter) {
     }
     timer_stop(PROFILING_TOTAL_TIME); /*#stop_timer*/
     maxtime = timer_read(PROFILING_TOTAL_TIME);
+    nvtxRangePop();
 }
 
 /*

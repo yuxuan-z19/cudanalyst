@@ -18,6 +18,8 @@
 
 #define POLYBENCH_TIME 1
 
+#include <nvtx3/nvToolsExt.h>
+
 #include "../../common/polybench.h"
 #include "../../common/polybenchUtilFuncts.h"
 #include "adi.cuh"
@@ -143,6 +145,7 @@ void adiCuda(int tsteps, int n, DATA_TYPE POLYBENCH_2D(A, N, N, n, n),
     grid1.x = (size_t)(ceil(((float)N) / ((float)block1.x)));
 
     /* Start timer. */
+    nvtxRangePushA("cugedit");
     polybench_start_instruments;
 
     for (int t = 0; t < _PB_TSTEPS; t++) {
@@ -171,6 +174,7 @@ void adiCuda(int tsteps, int n, DATA_TYPE POLYBENCH_2D(A, N, N, n, n),
     printf("GPU_Seconds=");
     polybench_stop_instruments;
     polybench_print_instruments;
+    nvtxRangePop();
 
     cudaMemcpy(B_outputFromGpu, B_gpu, N * N * sizeof(DATA_TYPE),
                cudaMemcpyDeviceToHost);

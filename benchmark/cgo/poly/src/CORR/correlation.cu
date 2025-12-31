@@ -11,6 +11,7 @@
 #include <assert.h>
 #include <cuda.h>
 #include <math.h>
+#include <nvtx3/nvToolsExt.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
@@ -149,6 +150,7 @@ void correlationCuda(int m, int n, DATA_TYPE POLYBENCH_2D(data, M, N, m, n),
         (size_t)(ceil((float)(M)) / ((float)DIM_THREAD_BLOCK_KERNEL_4_X)), 1);
 
     /* Start timer. */
+    nvtxRangePushA("cugedit");
     polybench_start_instruments;
 
     mean_kernel<<<grid1, block1>>>(m, n, mean_gpu, data_gpu);
@@ -164,6 +166,7 @@ void correlationCuda(int m, int n, DATA_TYPE POLYBENCH_2D(data, M, N, m, n),
     printf("GPU_Seconds=");
     polybench_stop_instruments;
     polybench_print_instruments;
+    nvtxRangePop();
 
     DATA_TYPE valueAtSymmatIndexMTimesMPlus1PlusMPoint = 1.0;
     cudaMemcpy(&(symmat_gpu[(M - 1) * M + (M - 1)]),

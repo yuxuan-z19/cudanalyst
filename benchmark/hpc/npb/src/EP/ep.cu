@@ -59,6 +59,7 @@
  */
 
 #include <cuda.h>
+#include <nvtx3/nvToolsExt.h>
 
 #include "ep.cuh"
 
@@ -141,14 +142,18 @@ int main(int argc, char** argv) {
 
     setup_gpu();
 
+    nvtxRangePushA("cugedit");
     timer_clear(PROFILING_TOTAL_TIME);
     timer_start(PROFILING_TOTAL_TIME);
 
     gpu_kernel<<<blocks_per_grid, threads_per_block>>>(q_device, sx_device,
                                                        sy_device, an);
+    cudaDeviceSynchronize();
 
     timer_stop(PROFILING_TOTAL_TIME);
     tm = timer_read(PROFILING_TOTAL_TIME);
+
+    nvtxRangePop();
 
     cudaMemcpy(q_host, q_device, size_q, cudaMemcpyDeviceToHost);
     cudaMemcpy(sx_host, sx_device, size_sx, cudaMemcpyDeviceToHost);

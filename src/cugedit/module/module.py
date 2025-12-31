@@ -7,7 +7,7 @@ from .chat import ChatSession, Service
 from .prompts import SUMMARY_MAP, PromptCfg
 
 
-@dataclass(frozen=True)
+@dataclass
 class ModuleCfg:
     enabled: bool = False
     formatted: bool = False
@@ -32,12 +32,9 @@ class Module:
     ):
         self.cfg = cfg
         self.prompt = prompt
-        self.agent = ChatSession(service)
+        self.agent = ChatSession(service, prompt.sys)
         self.tool = tool
         self.name = self.NAME or self.tool.__name__
-
-    def _build_context(self, feedback):
-        return self.tool.render(feedback) if self.cfg.formatted else str(feedback)
 
     def _render_prompt(self, ctx: ToolContext, context: str):
         template = self.prompt.usr or ""
@@ -49,23 +46,16 @@ class Module:
             template = template.replace(k, v)
         return template
 
-    def _ask_agent(self, prompt: str):
-        try:
-            self.agent.set_sys_prompt(self.cfg.sys_prompt or "")
-            return self.agent.ask(prompt)
-        finally:
-            self.agent.reset()
-
     def _summarize(self, ctx: ToolContext, context: str):
         prompt = self._render_prompt(ctx, context)
-        return self._ask_agent(prompt)
+        return self.agent.ask(prompt)
 
     def run(self, ctx: ToolContext) -> Report:
         if not self.cfg.enabled:
             return Report(self.name)
         feedback = self.tool.run(ctx)
-        context = self._build_context(feedback)
-        summary = self._summarize(ctx, context) if self.cfg.summarized else context
+        feedback = self.tool.render(feedback) if self.cfg.formatted else str(feedback)
+        summary = self._summarize(ctx, feedback) if self.cfg.summarized else None
         return Report(self.name, feedback, summary)
 
 
@@ -75,7 +65,6 @@ class Planner(Module):
     def __init__(self, cfg: ModuleCfg, prompt: PromptCfg, service: Service):
         super().__init__(cfg, prompt, service, None)
 
-    @override
     def _build_context(self, reports: list[Report]) -> str:
         if not reports:
             return ""
@@ -83,7 +72,9 @@ class Planner(Module):
         summaries = []
         for report in reports:
             template = SUMMARY_MAP.get(report.name)
-            template = template.replace(f"<{report.name.upper()}>", report.summary)
+            template = template.replace(
+                f"<{report.name.upper()}>", report.summary or report.feedback
+            )
             summaries.append(template)
 
         return "\n".join(summaries)

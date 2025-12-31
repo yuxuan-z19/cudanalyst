@@ -11,6 +11,7 @@
 #include <assert.h>
 #include <cuda.h>
 #include <math.h>
+#include <nvtx3/nvToolsExt.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
@@ -153,6 +154,7 @@ void mm3Cuda(int ni, int nj, int nk, int nl, int nm,
                (size_t)(ceil((float)NI / ((float)DIM_THREAD_BLOCK_Y))));
 
     /* Start timer. */
+    nvtxRangePushA("cugedit");
     polybench_start_instruments;
 
     mm3_kernel1<<<grid1, block>>>(ni, nj, nk, nl, nm, A_gpu, B_gpu, E_gpu);
@@ -166,6 +168,8 @@ void mm3Cuda(int ni, int nj, int nk, int nl, int nm,
     printf("GPU_Seconds=");
     polybench_stop_instruments;
     polybench_print_instruments;
+    nvtxRangePop();
+
     cudaMemcpy(G_outputFromGpu, G_gpu, sizeof(DATA_TYPE) * NI * NL,
                cudaMemcpyDeviceToHost);
 

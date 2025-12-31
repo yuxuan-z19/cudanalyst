@@ -19,6 +19,8 @@
 
 #define POLYBENCH_TIME 1
 
+#include <nvtx3/nvToolsExt.h>
+
 #include "../../common/polybench.h"
 #include "../../common/polybenchUtilFuncts.h"
 #include "gemm.cuh"
@@ -113,6 +115,7 @@ void gemmCuda(int ni, int nj, int nk, DATA_TYPE alpha, DATA_TYPE beta,
               (size_t)(ceil(((float)NJ) / ((float)block.y))));
 
     /* Start timer. */
+    nvtxRangePushA("cugedit");
     polybench_start_instruments;
 
     gemm_kernel<<<grid, block>>>(ni, nj, nk, alpha, beta, A_gpu, B_gpu, C_gpu);
@@ -122,6 +125,7 @@ void gemmCuda(int ni, int nj, int nk, DATA_TYPE alpha, DATA_TYPE beta,
     printf("GPU_Seconds=");
     polybench_stop_instruments;
     polybench_print_instruments;
+    nvtxRangePop();
 
     cudaMemcpy(C_outputFromGpu, C_gpu, sizeof(DATA_TYPE) * NI * NJ,
                cudaMemcpyDeviceToHost);

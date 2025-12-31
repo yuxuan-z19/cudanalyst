@@ -25,6 +25,8 @@
 
 #define POLYBENCH_TIME 1
 
+#include <nvtx3/nvToolsExt.h>
+
 #include "../../common/polybench.h"
 #include "../../common/polybenchUtilFuncts.h"
 #include "doitgen.cuh"
@@ -123,6 +125,7 @@ void doitgenCuda(int nr, int nq, int np,
               (unsigned int)ceil(((float)nr) / ((float)block.y)));
 
     /* Start timer. */
+    nvtxRangePushA("cugedit");
     polybench_start_instruments;
 
     for (int r = 0; r < nr; r++) {
@@ -136,6 +139,7 @@ void doitgenCuda(int nr, int nq, int np,
     printf("GPU_Seconds=");
     polybench_stop_instruments;
     polybench_print_instruments;
+    nvtxRangePop();
 
     cudaMemcpy(sum_outputFromGpu, sumGpu, NR * NQ * NP * sizeof(DATA_TYPE),
                cudaMemcpyDeviceToHost);

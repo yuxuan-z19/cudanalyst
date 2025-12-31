@@ -58,6 +58,7 @@
  */
 
 #include <cuda.h>
+#include <nvtx3/nvToolsExt.h>
 #include <omp.h>
 
 #include "ft.cuh"
@@ -176,6 +177,7 @@ int main(int argc, char** argv) {
     timer_clear(PROFILING_CHECKSUM);
 #endif
 
+    nvtxRangePushA("cugedit");
     timer_start(PROFILING_TOTAL_TIME);
 #pragma omp parallel
     {
@@ -205,6 +207,7 @@ int main(int argc, char** argv) {
 
     timer_stop(PROFILING_TOTAL_TIME);
     total_time = timer_read(PROFILING_TOTAL_TIME);
+    nvtxRangePop();
 
     if (total_time != 0.0) {
         mflops = 1.0e-6 * ((double)(NTOTAL)) *

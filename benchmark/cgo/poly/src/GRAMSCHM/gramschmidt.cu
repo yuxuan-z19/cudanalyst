@@ -19,6 +19,8 @@
 
 #define POLYBENCH_TIME 1
 
+#include <nvtx3/nvToolsExt.h>
+
 #include "../../common/polybench.h"
 #include "../../common/polybenchUtilFuncts.h"
 #include "gramschmidt.cuh"
@@ -115,6 +117,7 @@ void gramschmidtCuda(int ni, int nj, DATA_TYPE POLYBENCH_2D(A, NI, NJ, ni, nj),
     cudaMemcpy(A_gpu, A, sizeof(DATA_TYPE) * NI * NJ, cudaMemcpyHostToDevice);
 
     /* Start timer. */
+    nvtxRangePushA("cugedit");
     polybench_start_instruments;
     for (int k = 0; k < _PB_NJ; k++) {
         gramschmidt_kernel1<<<gridKernel1, block>>>(ni, nj, A_gpu, R_gpu, Q_gpu,
@@ -130,6 +133,7 @@ void gramschmidtCuda(int ni, int nj, DATA_TYPE POLYBENCH_2D(A, NI, NJ, ni, nj),
     printf("GPU_Seconds=");
     polybench_stop_instruments;
     polybench_print_instruments;
+    nvtxRangePop();
 
     cudaMemcpy(A_outputFromGpu, A_gpu, sizeof(DATA_TYPE) * NI * NJ,
                cudaMemcpyDeviceToHost);

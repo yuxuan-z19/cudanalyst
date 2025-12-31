@@ -87,6 +87,7 @@ int main(int argc, char* argv[]) {
         // Single NCU Profiling
         nvtxRangePushA("cugedit");
         verification = kernel_table[id](in, GSD, mype);
+        cudaDeviceSynchronize();
         nvtxRangePop();
     } else {
         printf(

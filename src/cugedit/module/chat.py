@@ -1,10 +1,13 @@
+import asyncio
 import os
+from copy import deepcopy
 from dataclasses import asdict, dataclass
 from enum import Enum
 from pathlib import Path
 
 import yaml
-from openai import OpenAI
+from openai import AsyncOpenAI, OpenAI
+from openai.types.chat.chat_completion import ChatCompletion, Choice
 from tenacity import retry, stop_after_attempt, wait_fixed
 
 
@@ -86,64 +89,102 @@ class ChatConfig:
         return iter(self.candidates)
 
 
-class ChatSession:
-    def __init__(self, service: Service, sys_prompt: str | None = None):
-        self.service = service
-        self.client = OpenAI(
-            base_url=service.api.url,
-            api_key=service.api.key,
-            timeout=service.api.timeout,
-            max_retries=0,
-        )
-
-        self._system: Message = None
-        self._history: list[Message] = []
-
-        if sys_prompt and sys_prompt.strip():
-            self.set_sys_prompt(sys_prompt)
-
-    @property
-    def name(self) -> str:
-        return self.service.name
-
-    def set_sys_prompt(self, prompt: str):
-        self._system = Message(Role.SYSTEM, prompt)
+class ChatState:
+    def __init__(self, sys_msg: Message | None = None):
+        self.sys_msg = sys_msg
+        self.history: list[Message] = []
 
     def reset(self):
-        self._history.clear()
+        self.history.clear()
 
-    def _build_messages(self, user_msg: Message, new_session: bool) -> list[dict]:
+    def clone(self) -> "ChatState":
+        return deepcopy(self)
+
+    def build_messages(self, user_msg: Message, use_history: bool) -> list[dict]:
         msgs: list[Message] = []
-        if self._system:
-            msgs.append(self._system)
-        if not new_session:
-            msgs.extend(self._history)
+        if self.sys_msg:
+            msgs.append(self.sys_msg)
+        if use_history:
+            msgs.extend(self.history)
         msgs.append(user_msg)
         return [asdict(m) for m in msgs]
 
-    @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_fixed(1),
-        reraise=True,
-    )
-    def _ask_impl(self, messages: list[dict[str, str]]) -> str:
-        response = self.client.chat.completions.create(
-            model=self.service.name,
-            messages=messages,
-            max_tokens=self.service.api.max_tokens,
-        )
-        for choice in response.choices:
-            if content := ((choice.message.content or "").strip()):
-                return content
+    def commit(self, user_msg: Message, reply: str):
+        self.history.extend([user_msg, Message(Role.LLM, reply)])
 
+
+class ChatTransport:
+    def __init__(self, service: Service):
+        kwargs = {
+            "base_url": service.api.url,
+            "api_key": service.api.key,
+            "timeout": service.api.timeout,
+        }
+        self.model = service.name
+        self.max_tokens = service.api.max_tokens
+
+        self.client = OpenAI(**kwargs)
+        self.async_client = AsyncOpenAI(**kwargs)
+
+    def _extract_reply(self, response: ChatCompletion) -> str:
+        choices: list[Choice] = getattr(response, "choices", None)
+        if not choices:
+            raise RuntimeError("No choices in response")
+
+        for choice in choices:
+            content = (choice.message.content or "").strip()
+            if content:
+                return content
         raise RuntimeError("Empty completion from model")
 
-    def ask(self, prompt: str, new_session: bool = False) -> str:
+    @retry(stop=stop_after_attempt(3), wait=wait_fixed(1), reraise=True)
+    def complete(self, messages: list[dict]) -> str:
+        resp = self.client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            max_tokens=self.max_tokens,
+        )
+        return self._extract_reply(resp)
+
+    @retry(stop=stop_after_attempt(3), wait=wait_fixed(1), reraise=True)
+    async def complete_async(self, messages: list[dict]) -> str:
+        resp = await self.async_client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            max_tokens=self.max_tokens,
+        )
+        return self._extract_reply(resp)
+
+
+class ChatSession:
+    def __init__(self, service: Service, sys_prompt: str = None):
+        sys_msg = Message(Role.SYSTEM, sys_prompt) if sys_prompt else None
+
+        self.state = ChatState(sys_msg)
+        self.transport = ChatTransport(service)
+
+        self._async_lock = asyncio.Lock()
+
+    @property
+    def name(self) -> str:
+        return self.transport.model
+
+    def reset(self):
+        self.state.reset()
+
+    def ask(self, prompt: str, use_history: bool = False) -> str:
         user_msg = Message(Role.USER, prompt)
-        messages = self._build_messages(user_msg, new_session)
+        messages = self.state.build_messages(user_msg, use_history)
 
-        reply = self._ask_impl(messages)
-
-        self._history.append(user_msg)
-        self._history.append(Message(Role.LLM, reply))
+        reply = self.transport.complete(messages)
+        self.state.commit(user_msg, reply)
         return reply
+
+    async def ask_async(self, prompt: str, use_history: bool = False) -> str:
+        async with self._async_lock:
+            user_msg = Message(Role.USER, prompt)
+            messages = self.state.build_messages(user_msg, use_history)
+
+            reply = await self.transport.complete_async(messages)
+            self.state.commit(user_msg, reply)
+            return reply

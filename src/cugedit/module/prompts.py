@@ -247,6 +247,12 @@ Please act as the PlanAgent to summarize the current state of the CUDA kernel an
 )
 
 SUMMARY_MAP = {
+    "ErrorPhase": """
+### Error Analysis
+- **Focus**: Error identification, fix suggestion.
+- ***Summary*:
+<ERRORPHASE>
+""",
     "LintTool": """
 ### Code Quality Context
 - **Focus**: Static analysis, C++ standards, and potential logical flaws.

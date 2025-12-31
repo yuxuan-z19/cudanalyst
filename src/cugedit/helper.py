@@ -6,7 +6,9 @@ import statistics as stats
 import subprocess
 import time
 import warnings
+from collections.abc import Iterator
 from enum import Enum
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -24,11 +26,14 @@ except:
     TORCH_INCLUDES = []
 
 
-def strip_codeblock(codeblock: str) -> str:
-    codeblock = codeblock.strip()
-    pattern = r"```(?:[a-zA-Z0-9_+-]+\s*)?\n([\s\S]*?)```"
-    match = re.search(pattern, codeblock)
-    return match.group(1).strip() if match else codeblock
+# Reference: https://github.com/algorithmicsuperintelligence/openevolve/blob/main/openevolve/utils/code_utils.py#L95
+def extract_codeblock(text: str) -> str:
+    text = text.strip()
+    pattern = re.compile(r"```(?:[a-zA-Z0-9_+-]+)?\s*([\s\S]*?)```", re.MULTILINE)
+    matches = pattern.findall(text)
+    if not matches:
+        return text
+    return max(matches, key=len).strip()
 
 
 def render_feedback_md(feedback: dict[str, Any]) -> str:
@@ -138,7 +143,9 @@ def make_gpu_env(gpu_id: int = None):
     return env
 
 
-def run_cmd(cmd: list[str], cwd: os.PathLike, gpu_id: int | None = None):
+def run_cmd(
+    cmd: list[str], cwd: os.PathLike, gpu_id: int = None, timeout: float = None
+):
     env = os.environ.copy()
     if gpu_id is not None:
         env.update(make_gpu_env(gpu_id))
@@ -151,6 +158,7 @@ def run_cmd(cmd: list[str], cwd: os.PathLike, gpu_id: int | None = None):
         text=True,
         env=env,
         check=True,
+        timeout=timeout,
     )
 
 
@@ -178,3 +186,61 @@ def parse_cmd_failure(
             }
         )
     return json.dumps(res, indent=2, ensure_ascii=False)
+
+
+def drain_plans(metrics: dict[str, Any]):
+    reports = metrics.pop("reports", [])
+    return metrics, {
+        r["name"]: f"Plan decision: {r['summary'] or r['feedback']}\n\n"
+        for r in reports
+    }
+
+
+def resolve_ckpt_dir(ckpt_dir: os.PathLike) -> Path:
+    base = Path(ckpt_dir)
+    return base if base.name == "checkpoints" else base / "checkpoints"
+
+
+def iter_program_json(
+    ckpt_base: os.PathLike, subdir_name: str = None
+) -> Iterator[tuple[Path, dict]]:
+    base = Path(ckpt_base)
+    sample_pattern = f"{subdir_name}/*.json" if subdir_name else "**/*.json"
+    seen_ids = set()
+    for json_file in base.rglob(sample_pattern):
+        if json_file.name in {"metadata.json", "best_program_info.json"}:
+            continue
+
+        try:
+            with open(json_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            sample_id = data.get("id")
+            if sample_id is None or sample_id in seen_ids:
+                continue
+
+            seen_ids.add(sample_id)
+
+            yield json_file, data
+
+        except (json.JSONDecodeError, OSError) as e:
+            print(f"Skipping {json_file}: {e}")
+
+
+def compute_label_stats(
+    res_list: list[dict[int, dict[str, int]]], labels: list[str], as_df: bool = False
+):
+    gen_stats = {}
+    for gen in res_list[0].keys():
+        ratios = [
+            sum(res[gen].get(label, 0) for label in labels) / max(res[gen]["total"], 1)
+            for res in res_list
+        ]
+        gen_stats[gen] = {"mean": np.mean(ratios), "std": np.std(ratios)}
+
+    if as_df:
+        import pandas as pd
+
+        return pd.DataFrame.from_dict(gen_stats, orient="index")
+
+    return gen_stats

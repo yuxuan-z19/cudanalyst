@@ -18,6 +18,8 @@
 
 #define POLYBENCH_TIME 1
 
+#include <nvtx3/nvToolsExt.h>
+
 #include "../../common/polybench.h"
 #include "../../common/polybenchUtilFuncts.h"
 #include "covariance.cuh"
@@ -124,6 +126,7 @@ void covarianceCuda(int m, int n, DATA_TYPE POLYBENCH_2D(data, M, N, m, n),
                1);
 
     /* Start timer. */
+    nvtxRangePushA("cugedit");
     polybench_start_instruments;
 
     mean_kernel<<<grid1, block1>>>(m, n, mean_gpu, data_gpu);
@@ -137,6 +140,7 @@ void covarianceCuda(int m, int n, DATA_TYPE POLYBENCH_2D(data, M, N, m, n),
     printf("GPU_Seconds=");
     polybench_stop_instruments;
     polybench_print_instruments;
+    nvtxRangePop();
 
     cudaMemcpy(symmat_outputFromGpu, symmat_gpu, sizeof(DATA_TYPE) * M * N,
                cudaMemcpyDeviceToHost);

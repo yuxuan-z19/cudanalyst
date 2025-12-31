@@ -58,6 +58,7 @@
  */
 
 #include <cuda.h>
+#include <nvtx3/nvToolsExt.h>
 
 #include "is.cuh"
 
@@ -297,6 +298,7 @@ int main(int argc, char** argv) {
 
     // if (CLASS != 'S') printf("\n   iteration\n");
 
+    nvtxRangePushA("cugedit");
 #if defined(PROFILING)
     timer_start(PROFILING_RANK);
 #else
@@ -333,6 +335,7 @@ int main(int argc, char** argv) {
 #else
     timecounter = timer_read(PROFILING_TOTAL_TIME);
 #endif
+    nvtxRangePop();
 
     //     char gpu_config[256];
     //     char gpu_config_string[2048];

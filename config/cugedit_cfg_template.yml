@@ -18,3 +18,5 @@ perf_cfg:
 
 plan_cfg:
   enabled: true
+  # formatted: true
+  summarized: true

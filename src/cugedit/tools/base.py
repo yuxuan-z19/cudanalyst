@@ -65,7 +65,7 @@ class BaseTool(ABC):
 
     @classmethod
     def render(cls, feedback):
-        return feedback
+        return str(feedback)
 
     @classmethod
     @abstractmethod

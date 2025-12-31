@@ -18,6 +18,8 @@
 
 #define POLYBENCH_TIME 1
 
+#include <nvtx3/nvToolsExt.h>
+
 #include "../../common/polybench.h"
 #include "../../common/polybenchUtilFuncts.h"
 #include "fdtd2d.cuh"
@@ -126,6 +128,7 @@ void fdtdCuda(int tmax, int nx, int ny,
               (size_t)ceil(((float)NX) / ((float)block.y)));
 
     /* Start timer. */
+    nvtxRangePushA("cugedit");
     polybench_start_instruments;
 
     for (int t = 0; t < _PB_TMAX; t++) {
@@ -142,6 +145,7 @@ void fdtdCuda(int tmax, int nx, int ny,
     printf("GPU_Seconds=");
     polybench_stop_instruments;
     polybench_print_instruments;
+    nvtxRangePop();
 
     cudaMemcpy(hz_outputFromGpu, hz_gpu, sizeof(DATA_TYPE) * NX * NY,
                cudaMemcpyDeviceToHost);
