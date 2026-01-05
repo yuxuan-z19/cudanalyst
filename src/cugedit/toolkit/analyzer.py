@@ -1,4 +1,3 @@
-import os
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
@@ -7,7 +6,7 @@ from typing import override
 from tree_sitter import Node
 from tree_sitter_language_pack import get_parser
 
-from ..helper import render_feedback_md
+from ..helper.text import render_feedback_md
 from .base import BaseTool, ToolContext
 
 

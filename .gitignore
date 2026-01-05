@@ -293,6 +293,7 @@ cmake-build-*
 out*
 test*
 log*
+*.json
 
 # polybench executables
 *.MINI

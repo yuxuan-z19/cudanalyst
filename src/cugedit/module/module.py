@@ -2,16 +2,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, override
 
-from ..tools.base import BaseTool, ToolContext
+from ..toolkit.base import BaseTool, ToolContext
 from .chat import ChatSession, Service
+from .config import ModuleCfg
 from .prompts import SUMMARY_MAP, PromptCfg
-
-
-@dataclass
-class ModuleCfg:
-    enabled: bool = False
-    formatted: bool = False
-    summarized: bool = False
 
 
 @dataclass

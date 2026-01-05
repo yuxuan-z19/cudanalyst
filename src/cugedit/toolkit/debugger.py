@@ -5,7 +5,7 @@ from typing import override
 import xmltodict
 import yaml
 
-from ..helper import CUDA_CC_VER, TORCH_INCLUDES, pick_idle_gpu
+from ..helper.cuda import CUDA_CC_VER, TORCH_INCLUDES, pick_idle_gpu
 from .base import BaseTool, ToolContext
 
 

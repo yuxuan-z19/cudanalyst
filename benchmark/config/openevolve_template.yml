@@ -34,13 +34,13 @@ prompt:
       - Use vectorized loads/stores (`float4`, `int4`) when alignment allows.
 
     2. Tensor Core compute
-      - Use WMMA or `mma.sync` paths with hardware-aligned MMA tiles (e.g., 16×16×16).
+      - Use WMMA or `mma.sync` paths with hardware-aligned MMA tiles (e.g., 16x16x16).
       - Expose multiple independent MMA ops per warp to increase ILP (instruction-level parallelism).
       - Use FP32 accumulation for mixed-precision math.
 
     3. Loop transformations
       - Apply in this order: Tile, Unroll, Skew/Permute, Double-buffer.
-      - Pick tile sizes that fit SMEM and register budgets (e.g., 64×64×16 as baseline).
+      - Pick tile sizes that fit SMEM and register budgets (e.g., 64x64x16 as baseline).
       - Fully unroll the inner K-loop to deepen ILP.
 
     4. Occupancy constraints

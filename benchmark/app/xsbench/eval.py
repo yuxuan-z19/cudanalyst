@@ -1,21 +1,23 @@
 import os
 import re
 import shutil
-import subprocess
 import tempfile
 from pathlib import Path
 
-from cugedit import AnalysisCfg, ToolContext, generate_plan
+from cugedit import AnalysisCfg, ToolContext, planning
 from cugedit.helper import *
+from cugedit.helper.stat import stats_med
+from cugedit.helper.text import extract_codeblock
 from cugedit.result import *
 
 NITER = 4
+TIMEOUT = 5 * 60  # 5 min
 SRC_DIR = Path(__file__).parent / "src"
 
 
 @dataclass
 class XsbenchMeta(ResultMeta):
-    med_lookup: int = ResultConstant.INVALID_INT
+    med_lookup: int = Score.INVALID_INT
     lookup_list: list[int] = field(default_factory=list)
 
 
@@ -27,7 +29,7 @@ class XsbenchResult(Result):
 
 def get_lookup_rate(raw: str):
     is_valid = bool(re.search(r"Verification checksum:\s*\d+\s*\(Valid\)", raw))
-    lookups = ResultConstant.INVALID_INT
+    lookups = Score.INVALID_INT
     if is_valid and (m2 := re.search(r"Lookups/s:\s*([\d,]+)", raw)):
         lookups = m2.group(1).replace(",", "")
     return is_valid, int(lookups)
@@ -53,33 +55,32 @@ def evaluate(program_path: os.PathLike, config: AnalysisCfg = None):
         make_cmd = ["make"]
         ctx.cmd = make_cmd
         try:
-            run_cmd(make_cmd, dst_path, gpu_id)
-        except subprocess.CalledProcessError as e:
-            error = parse_cmd_failure(e)
-            return XsbenchResult(error=error, reports=generate_plan(config, ctx, error))
+            run_cmd(make_cmd, dst_path, Stage.BUILD, gpu_id, TIMEOUT)
+        except ExecError as e:
+            return XsbenchResult(error=str(e), reports=planning(config, ctx, str(e)))
 
         def _exec_impl(cmd: list[str], niter: int = 1):
             lookup_list = []
             ctx.cmd = cmd
+
             for _ in range(niter):
                 try:
-                    proc = run_cmd(cmd, dst_path, gpu_id)
-                except Exception as e:
-                    error = parse_cmd_failure(e, Stage.RUN)
+                    proc = run_cmd(cmd, dst_path, Stage.RUN, gpu_id, TIMEOUT)
+                    is_valid, lookup = get_lookup_rate(proc.stdout)
+                    if not is_valid:
+                        raise ExecError(
+                            stage=Stage.VERIFY,
+                            cmd=cmd,
+                            reason=ExecFailReason.VERIFY_MISMATCH,
+                            stdout=proc.stdout,
+                        )
+                except ExecError as e:
                     return XsbenchMeta(
                         status=Status.COMPILE,
-                        error=error,
-                        reports=generate_plan(config, ctx, error),
+                        error=str(e),
+                        reports=planning(config, ctx, str(e)),
                     )
 
-                is_valid, lookup = get_lookup_rate(proc.stdout)
-                if not is_valid:
-                    error = parse_cmd_failure(ResultConstant.ERR_MISMATCH, Stage.VERIFY)
-                    return XsbenchMeta(
-                        status=Status.COMPILE,
-                        error=error,
-                        reports=generate_plan(config, ctx, error),
-                    )
                 lookup_list.append(lookup)
             return XsbenchMeta(
                 med_lookup=stats_med(lookup_list), lookup_list=lookup_list
@@ -106,7 +107,7 @@ def evaluate(program_path: os.PathLike, config: AnalysisCfg = None):
         ctx.cmd = test_cmds["custom"]
         return XsbenchResult(
             combined_score=score,
-            reports=generate_plan(config, ctx),
+            reports=planning(config, ctx),
             base_result=base_result,
             custom_result=custom_result,
         )

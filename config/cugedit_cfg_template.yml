@@ -1,5 +1,4 @@
 chat_config_path: "./config/keyset.yml"
-chat_select: "main"
 
 debug_cfg:
   enabled: true

@@ -1,17 +1,22 @@
 import os
 import shutil
-import subprocess
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from cugedit import AnalysisCfg, ToolContext, generate_plan
+from cugedit import AnalysisCfg, ToolContext, planning
 from cugedit.helper import *
+from cugedit.helper.stat import *
+from cugedit.helper.text import extract_codeblock
 from cugedit.result import *
 
 SUITE_ROOT = Path(__file__).parent
 COMMON_DIR = SUITE_ROOT / "common"
 SRC_DIR = SUITE_ROOT / "src"
+
+BUILD_TIMEOUT = 3 * 60
+TEST_TIMEOUT = 5 * 60  # 5 min
+EVAL_TIMEOUT = 15 * 60  # 15 min per run
 
 TEST_DATASET = ["MINI"]
 # EVAL_DATASET = ["SMALL", "STANDARD", "LARGE", "EXTRALARGE"]
@@ -50,16 +55,17 @@ def exec_impl(
     case: str,
     gpu_id: int,
     num_runs: int,
+    timeout: float,
     config: AnalysisCfg = None,
 ):
     ctx = ToolContext(code_path=(task_dir / "sol.cu"), cwd=task_dir)
     make_cmd = ["make", f"DATASET={case}"]
+    ctx.cmd = make_cmd
+
     try:
-        run_cmd(make_cmd, task_dir, gpu_id)
-    except subprocess.CalledProcessError as e:
-        ctx.cmd = make_cmd
-        error = parse_cmd_failure(e, Stage.BUILD)
-        return PolyMeta(error=error, reports=generate_plan(config, ctx, error))
+        run_cmd(make_cmd, task_dir, Stage.BUILD, gpu_id, BUILD_TIMEOUT)
+    except ExecError as e:
+        return PolyMeta(error=str(e), reports=planning(config, ctx, str(e)))
 
     exec_cmd = [(task_dir / f"{task_dir.name}.{case}").as_posix()]
     ctx.cmd = exec_cmd
@@ -68,24 +74,19 @@ def exec_impl(
     mismatch_cnt_list = []
     for _ in range(num_runs):
         try:
-            run_proc = run_cmd(exec_cmd, task_dir, gpu_id)
+            run_proc = run_cmd(exec_cmd, task_dir, Stage.RUN, gpu_id, timeout)
             result = parse_result(run_proc.stdout)
-            gpu_sec_list.append(result.get("GPU_Seconds", ResultConstant.INVALID_FLOAT))
-            mismatch_cnt_list.append(
-                result.get("Mismatch_Count", ResultConstant.INVALID_INT)
-            )
-        except subprocess.CalledProcessError as e:
-            error = parse_cmd_failure(e, Stage.RUN)
+            gpu_sec_list.append(result.get("GPU_Seconds", Score.INVALID_FLOAT))
+            mismatch_cnt_list.append(result.get("Mismatch_Count", Score.INVALID_INT))
+        except ExecError as e:
             return PolyMeta(
-                Status.COMPILE,
-                error=error,
-                reports=generate_plan(config, ctx, error),
+                Status.COMPILE, error=str(e), reports=planning(config, ctx, str(e))
             )
 
     med_gpu_sec = stats_med(gpu_sec_list)
     med_mismatch_cnt = stats_med(mismatch_cnt_list)
     return PolyMeta(
-        reports=generate_plan(config, ctx),
+        reports=planning(config, ctx),
         med_gpu_sec=[med_gpu_sec],
         gpu_sec_per_case=[gpu_sec_list],
         med_mismatch_cnt=[med_mismatch_cnt],
@@ -103,23 +104,25 @@ def execute(
 ) -> PolyMeta:
     (task_dir / "sol.cu").write_text(extract_codeblock(program_path.read_text()))
 
-    def _exec_case(case, *, analyst=False):
+    def _exec_case(case: str, timeout: float, use_analyst: bool = False):
         return exec_impl(
             task_dir,
             case,
             gpu_id,
             num_runs,
-            config if analyst else None,
+            timeout,
+            config if use_analyst else None,
         )
 
-    def _run_or_generate_plan(case):
-        res = _exec_case(case)
+    def _run_or_plan(case: str):
+        timeout = TEST_TIMEOUT if case in TEST_DATASET else EVAL_TIMEOUT
+        res = _exec_case(case, timeout)
         if res.status == Status.PASS:
             return res
-        return _exec_case(case, analyst=True)
+        return _exec_case(case, timeout, True)
 
     for case in TEST_DATASET:
-        res = _run_or_generate_plan(case)
+        res = _run_or_plan(case)
         if res.status != Status.PASS:
             return res
 
@@ -129,7 +132,7 @@ def execute(
     mismatch_cnt_per_case = []
 
     for case in EVAL_DATASET:
-        res = _run_or_generate_plan(case)
+        res = _run_or_plan(case)
         if res.status != Status.PASS:
             return res
 
@@ -141,20 +144,18 @@ def execute(
     if base_result and not elemwise_equal(
         base_result.med_mismatch_cnt, med_mismatch_cnt
     ):
-        error = parse_cmd_failure(ResultConstant.ERR_MISMATCH, Stage.VERIFY)
+        e = str(ExecError(Stage.VERIFY, None, ExecFailReason.VERIFY_MISMATCH))
         return PolyMeta(
             Status.COMPILE,
-            error=error,
-            reports=generate_plan(
-                config, ToolContext(program_path, cwd=task_dir), error
-            ),
+            error=e,
+            reports=planning(config, ToolContext(program_path, cwd=task_dir), e),
             med_mismatch_cnt=med_mismatch_cnt,
             mismatch_cnt_per_case=mismatch_cnt_per_case,
         )
 
     reports = []
     if num_runs >= NUM_RUNS:
-        reports = _exec_case(EVAL_DATASET[-1], analyst=True).reports
+        reports = _exec_case(EVAL_DATASET[-1], EVAL_TIMEOUT, True).reports
 
     return PolyMeta(
         reports=reports,

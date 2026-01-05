@@ -1,18 +1,8 @@
 # keyset template
-
-analyst:
-  candidates:
-    - xxxx
-  api_base: "http://xxx.yyy.zzz"
-  api_key: "zzzzzzzz"
-  timeout: 65536
-  max_tokens: 32768
-  single_output: true
-
-coder:
-  candidates:
-    - xxxx
-  api_base: "http://xxx.yyy.zzz"
-  api_key: "zzzzzzzz"
-  timeout: 65536
-  max_tokens: 8128
+candidates:
+  - xxxx
+api_base: "http://xxx.yyy.zzz"
+api_key: "zzzzzzzz"
+timeout: 65536
+max_tokens: 32768
+stream: true

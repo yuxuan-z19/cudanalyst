@@ -1,5 +1,6 @@
 import asyncio
 import os
+from collections.abc import Iterable
 from copy import deepcopy
 from dataclasses import asdict, dataclass
 from enum import Enum
@@ -7,7 +8,9 @@ from pathlib import Path
 
 import yaml
 from openai import AsyncOpenAI, OpenAI
-from openai.types.chat.chat_completion import ChatCompletion, Choice
+from openai.types.chat import ChatCompletion, ChatCompletionChunk
+from openai.types.chat.chat_completion import Choice as CompleteChoice
+from openai.types.chat.chat_completion_chunk import Choice as ChunkChoice
 from tenacity import retry, stop_after_attempt, wait_fixed
 
 
@@ -23,6 +26,7 @@ class Interface:
     key: str
     timeout: int
     max_tokens: int
+    stream: bool
 
     def __post_init__(self):
         if not self.url or not self.key:
@@ -42,26 +46,23 @@ class Message:
 
 
 class ChatConfig:
-    def __init__(self, config_pth: os.PathLike, select: str):
+    def __init__(self, config_pth: os.PathLike):
         config_file = Path(config_pth)
         if not config_file.exists():
             raise FileNotFoundError(f"Config file not found at {config_pth}")
 
         with config_file.open(encoding="utf-8") as f:
             try:
-                root: dict = yaml.safe_load(f) or {}
+                config: dict = yaml.safe_load(f) or {}
             except Exception as e:
                 raise ValueError(f"Invalid YAML format: {e}")
-
-        config = root.get(select)
-        if not isinstance(config, dict):
-            raise ValueError(f"Config for '{select}' not found")
 
         api = Interface(
             url=config.get("api_base"),
             key=config.get("api_key"),
-            timeout=config.get("timeout", 30),
-            max_tokens=config.get("max_tokens", 1024),
+            timeout=config.get("timeout", 3 * 60),
+            max_tokens=config.get("max_tokens", None),
+            stream=config.get("stream", False),
         )
 
         candidates = config.get("candidates") or []
@@ -120,39 +121,55 @@ class ChatTransport:
             "api_key": service.api.key,
             "timeout": service.api.timeout,
         }
-        self.model = service.name
-        self.max_tokens = service.api.max_tokens
+        self.service = service
+        self.use_stream = self.service.api.stream
 
         self.client = OpenAI(**kwargs)
         self.async_client = AsyncOpenAI(**kwargs)
 
-    def _extract_reply(self, response: ChatCompletion) -> str:
-        choices: list[Choice] = getattr(response, "choices", None)
-        if not choices:
-            raise RuntimeError("No choices in response")
+    def _extract_reply(
+        self, response: ChatCompletion | Iterable[ChatCompletionChunk]
+    ) -> str:
+        answer_content = ""
+        if self.use_stream:
+            for chunk in response:
+                choices: list[ChunkChoice] = getattr(chunk, "choices", [])
+                if not choices:
+                    continue
+                delta = choices[0].delta
+                content = getattr(delta, "content", None)
+                if content:
+                    answer_content += content
+        else:
+            choices: list[CompleteChoice] = getattr(response, "choices", [])
+            for choice in choices:
+                content = getattr(choice.message, "content", None)
+                if content:
+                    answer_content += content.strip()
 
-        for choice in choices:
-            content = (choice.message.content or "").strip()
-            if content:
-                return content
-        raise RuntimeError("Empty completion from model")
+        if not answer_content:
+            raise RuntimeError("Empty completion from model")
+
+        return answer_content
+
+    def _build_request(self, messages: list[dict]) -> dict:
+        kwargs = {"model": self.service.name, "messages": messages}
+        if self.service.api.max_tokens is not None:
+            kwargs["max_tokens"] = self.service.api.max_tokens
+        if self.use_stream:
+            kwargs["stream"] = True
+        return kwargs
 
     @retry(stop=stop_after_attempt(3), wait=wait_fixed(1), reraise=True)
     def complete(self, messages: list[dict]) -> str:
-        resp = self.client.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            max_tokens=self.max_tokens,
-        )
+        req_kwargs = self._build_request(messages)
+        resp = self.client.chat.completions.create(**req_kwargs)
         return self._extract_reply(resp)
 
     @retry(stop=stop_after_attempt(3), wait=wait_fixed(1), reraise=True)
     async def complete_async(self, messages: list[dict]) -> str:
-        resp = await self.async_client.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            max_tokens=self.max_tokens,
-        )
+        req_kwargs = self._build_request(messages)
+        resp = await self.async_client.chat.completions.create(**req_kwargs)
         return self._extract_reply(resp)
 
 

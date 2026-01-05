@@ -1,19 +1,26 @@
 import os
 import shutil
 import string
-import subprocess
 import tempfile
 from pathlib import Path
 
-from cugedit import AnalysisCfg, ToolContext, generate_plan
+from cugedit import AnalysisCfg, ToolContext, planning
 from cugedit.helper import *
+from cugedit.helper.stat import stats_med
+from cugedit.helper.text import extract_codeblock
 from cugedit.result import *
 
 SUITE_ROOT = Path(__file__).parent / "src"
 COMMON_INC_DIRS = ["common", "config", "sys", "Makefile"]
-TESTCLASS = ["S", "W"]
-DATACLASS = list(string.ascii_uppercase[:3])
-NUM_RUNS = 3
+
+BUILD_TIMEOUT = 3 * 60  # 3 min
+TEST_TIMEOUT = 5 * 60  # 5 min
+EVAL_TIMEOUT = 15 * 60  # 15 min
+
+TEST_CLASS = ["S", "W"]
+EVAL_CLASS = list(string.ascii_uppercase[:3])
+
+NUM_RUNS = 10
 
 
 @dataclass
@@ -55,6 +62,7 @@ def exec_impl(
     case: str,
     gpu_id: int,
     num_runs: int,
+    timeout: float,
     config: AnalysisCfg = None,
 ) -> NPBMeta:
     ctx = ToolContext(code_path=(task_dir / task_name / "sol.cu"), cwd=task_dir)
@@ -62,10 +70,9 @@ def exec_impl(
     make_cmd = ["make", task_name, f"CLASS={case}"]
     ctx.cmd = make_cmd
     try:
-        run_cmd(make_cmd, task_dir, gpu_id)
-    except subprocess.CalledProcessError as e:
-        error = parse_cmd_failure(e)
-        return NPBMeta(error=error, reports=generate_plan(config, ctx, error))
+        run_cmd(make_cmd, task_dir, Stage.BUILD, gpu_id, BUILD_TIMEOUT)
+    except ExecError as e:
+        return NPBMeta(error=str(e), reports=planning(config, ctx, str(e)))
 
     exec_cmd = [(task_dir / f"bin/{task_name.lower()}.{case}").as_posix()]
     ctx.cmd = exec_cmd
@@ -73,28 +80,20 @@ def exec_impl(
     mops_list = []
     for _ in range(num_runs):
         try:
-            run_proc = run_cmd(exec_cmd, task_dir, gpu_id)
-        except subprocess.CalledProcessError as e:
-            error = parse_cmd_failure(e, stage=Stage.RUN)
+            run_proc = run_cmd(exec_cmd, task_dir, Stage.RUN, gpu_id, timeout)
+            result = parse_result(run_proc.stdout)
+            if result.get("verified", 0) <= 0:
+                raise ExecError(Stage.VERIFY, exec_cmd, ExecFailReason.VERIFY_MISMATCH)
+        except ExecError as e:
             return NPBMeta(
-                Status.COMPILE,
-                error=error,
-                reports=generate_plan(config, ctx, error),
+                Status.COMPILE, error=str(e), reports=planning(config, ctx, str(e))
             )
 
-        result = parse_result(run_proc.stdout)
-        if result.get("verified", 0) <= 0:
-            error = parse_cmd_failure(ResultConstant.ERR_MISMATCH, Stage.VERIFY)
-            return NPBMeta(
-                Status.COMPILE,
-                error=error,
-                reports=generate_plan(config, ctx, error),
-            )
-        mops_list.append(result.get("Mops", ResultConstant.INVALID_FLOAT))
+        mops_list.append(result.get("Mops", Score.INVALID_FLOAT))
 
     med_mops = stats_med(mops_list)
     return NPBMeta(
-        reports=generate_plan(config, ctx),
+        reports=planning(config, ctx),
         med_mops_list=[med_mops],
         mops_res_list=[mops_list],
     )
@@ -112,31 +111,33 @@ def execute(
         extract_codeblock(program_path.read_text())
     )
 
-    def _exec_case(case, *, analyst=False):
+    def _exec_case(case: str, timeout: float, use_analyst: bool = False):
         return exec_impl(
             task_name,
             task_dir,
             case,
             gpu_id,
             num_runs,
-            config if analyst else None,
+            timeout,
+            config if use_analyst else None,
         )
 
-    def _run_or_generate_plan(case):
-        res = _exec_case(case)
+    def _run_or_plan(case: str):
+        timeout = TEST_TIMEOUT if case in TEST_CLASS else EVAL_TIMEOUT
+        res = _exec_case(case, timeout)
         if res.status == Status.PASS:
             return res
-        return _exec_case(case, analyst=True)
+        return _exec_case(case, timeout, True)
 
-    for case in TESTCLASS:
-        res = _run_or_generate_plan(case)
+    for case in TEST_CLASS:
+        res = _run_or_plan(case)
         if res.status != Status.PASS:
             return res
 
     med_mops_list = []
     mops_res_list = []
-    for case in DATACLASS:
-        res = _run_or_generate_plan(case)
+    for case in EVAL_CLASS:
+        res = _run_or_plan(case)
         if res.status != Status.PASS:
             return res
 
@@ -145,7 +146,7 @@ def execute(
 
     reports = []
     if num_runs >= NUM_RUNS:
-        reports = _exec_case(DATACLASS[-1], analyst=True).reports
+        reports = _exec_case(EVAL_CLASS[-1], EVAL_TIMEOUT, True).reports
 
     return NPBMeta(
         reports=reports, med_mops_list=med_mops_list, mops_res_list=mops_res_list

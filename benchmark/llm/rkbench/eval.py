@@ -13,8 +13,9 @@ from robust_kbench.primitives.evaluate import (
     eval_torch_runtime,
 )
 
-from cugedit.helper import parse_cmd_failure, pick_idle_gpu
-from cugedit.result import Result, ResultConstant, ResultMeta, Status, return_asdict
+from cugedit.helper import pick_idle_gpu
+from cugedit.helper.exec import ExecError, ExecFailReason, Stage
+from cugedit.result import *
 
 SUITE_ROOT = Path(__file__).parent / "robust_kbench"
 BASELINE_DIR = SUITE_ROOT / "highlighted"
@@ -33,25 +34,15 @@ EVAL_TYPE = "kernelbench"
 
 @dataclass
 class RKbenchMeta(ResultMeta):
-    runtime: float = ResultConstant.INVALID_FLOAT
+    runtime: float = Score.INVALID_FLOAT
 
 
 @dataclass
 class RKbenchResult(Result):
-    base_runtime: float = ResultConstant.INVALID_FLOAT
-    custom_runtime: float = ResultConstant.INVALID_FLOAT
-    naive_runtime: float = ResultConstant.INVALID_FLOAT
-    compile_runtime: float = ResultConstant.INVALID_FLOAT
-
-
-def parse_invalid(correct_result: dict[str, Any]) -> RKbenchResult:
-    e = subprocess.CalledProcessError(
-        -1,
-        correct_result["nvcc_output"],
-        correct_result["stdout"],
-        correct_result["stderr"],
-    )
-    return parse_cmd_failure(e)
+    base_runtime: float = Score.INVALID_FLOAT
+    custom_runtime: float = Score.INVALID_FLOAT
+    naive_runtime: float = Score.INVALID_FLOAT
+    compile_runtime: float = Score.INVALID_FLOAT
 
 
 def is_backward(file_path: os.PathLike):
@@ -68,8 +59,17 @@ def execute(program_path: Path, problem_dir: Path, eval_kwargs: dict[str, Any]):
     dst_program = dst_program_path.as_posix()
 
     correct_result = correct_cuda_kernel(problem_dir, dst_program, **eval_kwargs)
-    if not correct_result["summary"]["correct"]:
-        return RKbenchMeta(error=parse_invalid(correct_result))
+    correct_summary: dict = correct_result.get("summary", {})
+    if not correct_summary.get("correct"):
+        e = ExecError(
+            Stage.BUILD,
+            correct_result["nvcc_output"],
+            correct_summary.get("error", ExecFailReason.FAILED),
+            None,
+            correct_result["stdout"],
+            correct_result["stderr"],
+        )
+        return RKbenchMeta(error=str(e))
 
     cuda_result = eval_cuda_kernel(
         problem_dir,
