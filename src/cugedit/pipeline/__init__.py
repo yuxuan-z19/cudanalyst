@@ -1,3 +1,3 @@
 from .analysis import AnalysisPipe
 from .config import *
-from .intervene import IntervenePipe
+from .intervene import IntervenePipe, IntervenePipeAsync

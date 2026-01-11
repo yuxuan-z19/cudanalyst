@@ -139,7 +139,7 @@ def plot_gen_trajectory(
             ax.spines[spine].set_visible(False)
 
         if m_idx == 0:
-            ax.set_ylabel("Metric")
+            ax.set_ylabel("Execution Success Rate")
         else:
             ax.set_ylabel("")
 

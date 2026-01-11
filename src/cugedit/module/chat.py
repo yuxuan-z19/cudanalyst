@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import os
 from collections.abc import Iterable
 from copy import deepcopy
@@ -7,11 +8,17 @@ from enum import Enum
 from pathlib import Path
 
 import yaml
-from openai import AsyncOpenAI, OpenAI
+from openai import APIConnectionError, APIStatusError, AsyncOpenAI, OpenAI
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
 from openai.types.chat.chat_completion import Choice as CompleteChoice
 from openai.types.chat.chat_completion_chunk import Choice as ChunkChoice
-from tenacity import retry, stop_after_attempt, wait_fixed
+from tenacity import (
+    AsyncRetrying,
+    Retrying,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_fixed,
+)
 
 
 class Role(str, Enum):
@@ -114,6 +121,28 @@ class ChatState:
         self.history.extend([user_msg, Message(Role.LLM, reply)])
 
 
+def retry_wrapper(fn):
+    is_coroutine = inspect.iscoroutinefunction(fn)
+    retry_kwargs = {
+        "stop": stop_after_attempt(3),
+        "wait": wait_fixed(1),
+        "retry": retry_if_exception_type((APIStatusError, APIConnectionError)),
+        "reraise": True,
+    }
+
+    def sync_wrapper(*args, **kwargs):
+        retryer = Retrying(**retry_kwargs)
+        return retryer(fn, *args, **kwargs)
+
+    async def async_wrapper(*args, **kwargs):
+        retryer = AsyncRetrying(**retry_kwargs)
+        async for attempt in retryer:
+            with attempt:
+                return await fn(*args, **kwargs)
+
+    return async_wrapper if is_coroutine else sync_wrapper
+
+
 class ChatTransport:
     def __init__(self, service: Service):
         kwargs = {
@@ -130,7 +159,7 @@ class ChatTransport:
     def _extract_reply(
         self, response: ChatCompletion | Iterable[ChatCompletionChunk]
     ) -> str:
-        answer_content = ""
+        content_list = []
         if self.use_stream:
             for chunk in response:
                 choices: list[ChunkChoice] = getattr(chunk, "choices", [])
@@ -139,17 +168,17 @@ class ChatTransport:
                 delta = choices[0].delta
                 content = getattr(delta, "content", None)
                 if content:
-                    answer_content += content
+                    content_list.append(content)
         else:
             choices: list[CompleteChoice] = getattr(response, "choices", [])
             for choice in choices:
                 content = getattr(choice.message, "content", None)
                 if content:
-                    answer_content += content.strip()
+                    content_list.append(content.strip())
 
+        answer_content = "".join(content_list)
         if not answer_content:
             raise RuntimeError("Empty completion from model")
-
         return answer_content
 
     def _build_request(self, messages: list[dict]) -> dict:
@@ -160,13 +189,13 @@ class ChatTransport:
             kwargs["stream"] = True
         return kwargs
 
-    @retry(stop=stop_after_attempt(3), wait=wait_fixed(1), reraise=True)
+    @retry_wrapper
     def complete(self, messages: list[dict]) -> str:
         req_kwargs = self._build_request(messages)
         resp = self.client.chat.completions.create(**req_kwargs)
         return self._extract_reply(resp)
 
-    @retry(stop=stop_after_attempt(3), wait=wait_fixed(1), reraise=True)
+    @retry_wrapper
     async def complete_async(self, messages: list[dict]) -> str:
         req_kwargs = self._build_request(messages)
         resp = await self.async_client.chat.completions.create(**req_kwargs)
