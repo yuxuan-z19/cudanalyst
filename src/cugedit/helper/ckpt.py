@@ -35,8 +35,15 @@ def iter_program_json(
             with open(json_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
 
-            sample_id = data.get("id")
-            if sample_id is None or sample_id in seen_ids:
+            if (raw_id := data.get("id")) is None:
+                continue
+            if isinstance(raw_id, dict):
+                if (sample_id := raw_id.get("pid")) is None:
+                    continue
+            else:
+                sample_id = raw_id
+
+            if sample_id in seen_ids:
                 continue
 
             seen_ids.add(sample_id)

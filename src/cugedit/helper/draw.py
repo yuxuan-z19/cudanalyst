@@ -1,5 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import seaborn as sns
+from matplotlib.colors import LinearSegmentedColormap
 
 
 def plot_dist_per_run(runs):
@@ -106,7 +108,8 @@ def plot_gen_trajectory(
     if markers is None:
         markers = ["o", "s", "^", "D", "*"][:num_configs]
 
-    fig, axes = plt.subplots(1, 4, figsize=(7.2, 2.0), sharex=True, sharey=True)
+    fig, axes = plt.subplots(2, 2, figsize=(3.3, 3.3), sharex=True, sharey=True)
+    axes = axes.flatten()
 
     for m_idx, ax in enumerate(axes):
         means = np.asarray(means_list[m_idx])
@@ -117,9 +120,9 @@ def plot_gen_trajectory(
                 gens,
                 means[c_idx],
                 color=colors[c_idx],
-                linewidth=1.3,
+                linewidth=1.0,
                 marker=markers[c_idx],
-                markersize=3.5,
+                markersize=2.5,
                 markevery=2,
             )
             ax.fill_between(
@@ -131,46 +134,118 @@ def plot_gen_trajectory(
                 linewidth=0,
             )
 
-        ax.set_title(model_names[m_idx], fontsize=8)
+        ax.set_title(model_names[m_idx], fontsize=6)
         ax.set_ylim(0, 1)
-        ax.tick_params(axis="both", labelsize=7)
+        ax.tick_params(axis="both", labelsize=6)
 
         for spine in ["top", "right"]:
             ax.spines[spine].set_visible(False)
 
-        if m_idx == 0:
-            ax.set_ylabel("Execution Success Rate")
-        else:
-            ax.set_ylabel("")
+    fig.text(
+        0.03,
+        0.5,
+        "Execution Success Rate",
+        va="center",
+        rotation="vertical",
+        fontsize=6,
+    )
 
     handles = [
         plt.Line2D(
             [0],
             [0],
             color=colors[i],
-            lw=1.5,
+            lw=1.2,
             marker=markers[i],
-            markersize=4,
+            markersize=3,
             markerfacecolor=colors[i],
             markeredgewidth=0.0,
         )
         for i in range(num_configs)
     ]
-    fig.supxlabel("Generation", y=0.01)
     fig.legend(
         handles,
         config_labels,
         loc="upper center",
-        bbox_to_anchor=(0.5, 1.08),
+        bbox_to_anchor=(0.5, 1.02),
         ncol=num_configs,
         frameon=False,
+        fontsize=6,
     )
 
+    fig.supxlabel("Generation", y=0.005, fontsize=6)
+
     fig.subplots_adjust(
-        left=0.07,
-        right=0.995,
-        top=0.88,
-        bottom=0.18,
-        wspace=0.15,
+        left=0.15, right=0.95, top=0.9, bottom=0.12, hspace=0.25, wspace=0.15
     )
+    return fig
+
+
+def plot_pairwise_synergy_heatmap(
+    pairwise_data,
+    metrics,
+    pair_names,
+    gens=None,
+    cmap=None,
+    row_height=1.1,
+    width=5,
+    cbar_label=r"Pairwise Synergy",
+):
+    n_rows = len(metrics)
+    figsize = (width, row_height * n_rows)
+
+    if gens is None:
+        gens = np.arange(
+            len(pairwise_data[metrics[0]][list(pairwise_data[metrics[0]].keys())[0]])
+        )
+    if cmap is None:
+        jingliu = ["#1D2652", "#1159AA", "#CEDDF3", "#A2090C", "#4F0407"]
+        cmap = LinearSegmentedColormap.from_list("jingliu", jingliu)
+
+    all_values = []
+    for m in metrics:
+        for k in pair_names:
+
+            key = k.replace(r"$\sigma_{", "sigma_").replace("}$", "")
+            all_values.extend(pairwise_data[m][key])
+    vmin, vmax = min(all_values), max(all_values)
+
+    fig, axes = plt.subplots(
+        len(metrics), 1, figsize=figsize, sharex=True, gridspec_kw={"right": 0.85}
+    )
+
+    for i, m in enumerate(metrics):
+        ax = axes[i]
+        data = np.array(
+            [
+                pairwise_data[m][k.replace(r"$\sigma_{", "sigma_").replace("}$", "")]
+                for k in pair_names
+            ]
+        )
+        sns.heatmap(
+            data,
+            ax=ax,
+            center=0,
+            annot=True,
+            fmt=".2f",
+            cmap=cmap,
+            vmin=vmin,
+            vmax=vmax,
+            cbar=False,
+            xticklabels=gens,
+            yticklabels=pair_names,
+        )
+        ax.set_ylabel(m)
+        if i == len(metrics) - 1:
+            ax.set_xlabel("Generation")
+        else:
+            ax.set_xlabel("")
+
+    cbar_ax = fig.add_axes([0.87, 0.15, 0.015, 0.7])
+    norm = plt.cm.colors.Normalize(vmin=vmin, vmax=vmax)
+    sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+    sm.set_array([])
+    fig.colorbar(sm, cax=cbar_ax, label=cbar_label)
+    fig.subplots_adjust(left=0.12, right=0.82, top=0.95, bottom=0.12, hspace=0.25)
+
     return fig

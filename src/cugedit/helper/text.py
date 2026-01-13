@@ -28,3 +28,7 @@ def ntoken(message: str) -> int:
     encoding = tiktoken.encoding_for_model("gpt-4o-mini")
     tokens = encoding.encode(message)
     return len(tokens)
+
+
+def is_valid_str(code: str) -> bool:
+    return bool(code and code.strip())

@@ -15,9 +15,8 @@ from tqdm.rich import tqdm
 
 from ..helper.ckpt import iter_program_json
 from ..helper.exec import Status
-from ..helper.text import extract_codeblock
+from ..helper.text import extract_codeblock, is_valid_str
 from ..module.chat import ChatSession, Service
-from ..module.module import Report
 from ..module.prompts import PromptCfg
 from .base import Pipeline
 from .config import AnalysisCfg
@@ -45,7 +44,7 @@ class PromptCtx:
     id: ID
     prompt: PromptCfg
     profile: CodeProfile
-    reports: list[Report] = field(default_factory=list)
+    reports: list[dict[str, str]] = field(default_factory=list)
 
 
 @dataclass
@@ -60,11 +59,9 @@ class CodeSample:
 class Record:
     id: ID
     num_trials: int
-    status_count: defaultdict[str, int] = field(
-        default_factory=lambda: defaultdict(int)
-    )
+    status_count: dict[str, int] = field(default_factory=lambda: defaultdict(int))
     highest_status: str = Status.FAIL.value
-    reports: list[Report] = field(default_factory=list)
+    reports: list[dict[str, str]] = field(default_factory=list)
     plan_decision: str = ""
     prompt: PromptCfg = None
     results: list[CodeProfile] = field(default_factory=list)
@@ -83,7 +80,7 @@ class IntervenePipe(Pipeline):
         self.problem_dir = problem_dir
 
     @staticmethod
-    def _format_plan_decision(reports: list[dict]) -> str:
+    def _format_plan_decision(reports: list[dict[str, str]]) -> str:
         if not reports:
             return ""
         sections = []
@@ -194,6 +191,7 @@ class IntervenePipe(Pipeline):
                     return CodeSample(ctx.id, extract_codeblock(reply))
                 except (asyncio.TimeoutError, Exception) as e:
                     if attempt >= MAX_RETRY:
+                        print(f"{ctx.id} failed: {e}")
                         return CodeSample(ctx.id, error=str(e))
 
                     attempt += 1
@@ -210,7 +208,7 @@ class IntervenePipe(Pipeline):
         service: Service,
         num_trials: int,
         concurrency: int = 8,
-    ):
+    ) -> list[CodeSample]:
         sem = asyncio.Semaphore(concurrency)
 
         async def sem_gen_codes(ctx):
@@ -228,7 +226,7 @@ class IntervenePipe(Pipeline):
     def eval_one_sample(
         sample: CodeSample, evaluator: Callable, problem_dir: os.PathLike
     ) -> CodeSample:
-        if not sample.error:
+        if is_valid_str(sample.code) and not sample.error:
             sample.metrics = IntervenePipe._eval(sample.code, evaluator, problem_dir)
         return sample
 
@@ -261,12 +259,10 @@ class IntervenePipe(Pipeline):
         ) as pool:
             futures = [
                 pool.submit(
-                    IntervenePipe.eval_one_sample,
-                    sample,
-                    self.evaluator,
-                    self.problem_dir,
+                    self.eval_one_sample, sample, self.evaluator, self.problem_dir
                 )
                 for sample in llm_outputs
+                if is_valid_str(sample.code) and not sample.error
             ]
 
             for fut in tqdm(as_completed(futures), total=len(futures), desc="EVAL"):
@@ -282,7 +278,7 @@ class IntervenePipe(Pipeline):
                         id=ctx.id,
                         num_trials=num_trials,
                         reports=ctx.reports,
-                        plan_decision=IntervenePipe._format_plan_decision(ctx.reports),
+                        plan_decision=self._format_plan_decision(ctx.reports),
                         prompt=ctx.prompt,
                         old_profile=ctx.profile,
                     )
@@ -400,11 +396,14 @@ class IntervenePipeAsync(IntervenePipe):
             finished = 0
 
             while True:
-                sample = await sample_queue.get()
+                sample: CodeSample = await sample_queue.get()
                 if sample is None:
                     finished += 1
                     if finished == llm_concurrency:
                         break
+                    continue
+
+                if not is_valid_str(sample.code) or sample.error:
                     continue
 
                 sample = await loop.run_in_executor(
@@ -466,9 +465,14 @@ class IntervenePipeAsync(IntervenePipe):
         )
 
         records: dict[str, Record] = {}
-        ctx_map: dict[str, PromptCtx] = {
-            data["id"]: None for _, data in iter_program_json(input_ckpt_dir)
-        }
+        ctx_map: dict[str, PromptCtx] = {}
+        for _, data in iter_program_json(input_ckpt_dir):
+            raw_id = data["id"]
+            if isinstance(raw_id, dict):
+                id = raw_id["pid"]
+            else:
+                id = raw_id
+            ctx_map[id] = None
 
         await asyncio.gather(
             self.produce_contexts(input_ckpt_dir, ctx_queue, ctx_map, llm_concurrency),
