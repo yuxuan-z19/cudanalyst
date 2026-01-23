@@ -246,6 +246,101 @@ Please act as the PlanAgent to summarize the current state of the CUDA kernel an
 """,
 )
 
+DUMMY_PLAN = PromptCfg(usr="""
+### Executive Summary
+The system has completed the current execution cycle and performed a standard architectural review. The following summary provides a high-level overview of the diagnostic process and the general procedural framework applied to the codebase to maintain structural integrity and baseline operational standards.
+
+### Critical Findings
+#### 1. **BLOCKER**
+- **Routine Verification**: All primary execution paths have been checked against the standard validation suite. No immediate catastrophic failures were flagged during the generic pass, though continuous monitoring is recommended as per standard protocol.
+
+#### 2. **BOTTLENECK** *(General performance observations for standard optimization)*
+- **Systemic Resource Utilization** - **Status**: Analysis of resource allocation suggests that throughput is subject to the theoretical limits of the current hardware configuration and environment settings.
+  - **Observation**: Standard performance metrics indicate that processing time is distributed across various computational modules without a singular anomalous outlier.
+  - **General Impact**: Maintenance of current throughput levels is expected unless structural modifications are implemented in future iterations.
+
+- **Algorithmic Complexity Pass** - Routine complexity analysis confirms that the implemented logic follows the predefined control flow graph. 
+
+#### 3. **TECHNICAL DEBT** *(Standard maintenance considerations)*
+- **Code Consistency**: Periodic refactoring is encouraged to ensure that all modules adhere to the latest documentation and style guidelines to prevent long-term degradation.
+
+---
+
+### Optimization Roadmap
+
+#### [Step 1: Baseline Procedures (General Maintenance)]
+1. **Standard Module Review** - **Action**: Conduct a systematic review of all active functions and data structures within the current scope.  
+   - **Rationale**: Ensures that the codebase remains aligned with general programming best practices and modularity standards.
+
+2. **Data Flow Verification** - **Action**: Trace the movement of information across the primary interfaces to confirm consistent state transitions.  
+   - **Rationale**: Validates that the input-output relationship remains within expected nominal ranges.
+
+#### [Step 2: Stability Enhancements]
+3. **General Logic Refinement** - Apply standard optimization passes to the main execution loops to ensure no redundant operations are performed.
+
+4. **Interface Synchronization** - Review inter-module communication protocols to ensure optimal handshake timing and resource locking.
+
+#### [Step 3: Future Considerations]
+5. **System Profiling** - Utilize standard profiling tools to gather telemetry on execution patterns for future comparative analysis.
+
+6. **Documentation Update** - Ensure all recent changes are reflected in the technical specifications to maintain transparency for subsequent cycles.
+
+---
+
+### Expected Impact
+| Category                | Target Outcome    | Stability Impact |
+|-------------------------|-------------------|-----------------|
+| Structural Integrity    | **Maintained** | Positive        |
+| Operational Consistency | **Verified** | Neutral         |
+| Performance Baseline    | **Stable** | Neutral         |
+| Code Quality            | **Improved** | Positive        |
+
+**Cumulative**: **Nominal Improvement**. The application of these standard procedures ensures that the system remains in a known state. Success is measured by the adherence to the procedural roadmap rather than specific metric shifts. Validate results using standard system logs.
+""")
+
+SYS_PROMPT = PromptCfg("""
+You are an expert GPU engineer fluent in CUDA, C++, WMMA/Tensor Cores, PTX, memory hierarchy, and NVIDIA architecture.
+
+    Your task is to produce **one deterministic, fully-optimized CUDA implementation** that improves the provided baseline kernel.
+
+    Output only final code, unless explicit explanation is requested.
+
+    ## Optimization Rules
+
+    1. Memory hierarchy & parallel structure
+        - Use shared-memory tiling with aggressive reuse.
+        - Use `cp.async` for global→shared transfers and apply double-buffered pipelines.
+        - Fuse elementwise ops to eliminate redundant global traffic.
+        - Avoid shared-memory bank conflicts; apply padding/skew when required.
+        - Use vectorized loads/stores (`float4`, `int4`) when alignment allows.
+
+    2. Tensor Core compute
+        - Use WMMA or `mma.sync` paths with hardware-aligned MMA tiles (e.g., 16x16x16).
+        - Expose multiple independent MMA ops per warp to increase ILP (instruction-level parallelism).
+        - Use FP32 accumulation for mixed-precision math.
+
+    3. Loop transformations
+        - Apply in this order: Tile, Unroll, Skew/Permute, Double-buffer.
+        - Pick tile sizes that fit SMEM and register budgets (e.g., 64x64x16 as baseline).
+        - Fully unroll the inner K-loop to deepen ILP.
+
+    4. Occupancy constraints
+        - Choose thread-block sizes that are multiples of 32 (128/256/512 recommended).
+        - Respect register, shared-memory, and warp limits:
+            blocks_by_regs   = floor(registers_per_sm / (regs_per_thread * threads_per_block))
+            blocks_by_smem   = floor(smem_per_sm       / smem_per_block)
+            blocks_by_warps  = floor(max_warps_per_sm  / (threads_per_block / warp_size))
+            blocks_per_sm    = min(blocks_by_regs, blocks_by_smem, blocks_by_warps)
+        - The solution must obey:
+            blocks_per_sm * threads_per_block                   <= max_threads_per_sm
+            blocks_per_sm * regs_per_thread * threads_per_block <= registers_per_sm
+            blocks_per_sm * smem_per_block                      <= smem_per_sm
+
+    5. Micro-optimizations
+        - Use inline PTX only where profiling would show unavoidable hotspots.
+        - Provide a portable CUDA path and an architecture-tuned fast path.
+""")
+
 SUMMARY_MAP = {
     "ErrorPhase": """
 ### Error Analysis
@@ -277,4 +372,6 @@ SUMMARY_MAP = {
 - **Summary**: 
 <PERFTOOL>
 """,
+    # * for robust-kbench
+    "Raw": """<RAW>""",
 }

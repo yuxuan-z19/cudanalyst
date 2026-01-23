@@ -3,8 +3,7 @@ max_iterations: 200
 checkpoint_interval: 10
 log_level: "INFO"
 
-# ! DON'T CHANGE: disable random_seed
-random_seed:
+random_seed: 42
 
 llm:
   api_base: # TODO: config your LLM API
@@ -82,5 +81,5 @@ diff_based_evolution: false
 allow_full_rewrites: true
 max_code_length: 60000
 
-# ! DON'T CHANGE: Collect contexts to reduce GPU memory overhead
+# ! Collect contexts to reduce GPU memory overhead
 max_tasks_per_child: 1

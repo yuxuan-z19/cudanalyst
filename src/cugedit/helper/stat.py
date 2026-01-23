@@ -115,7 +115,7 @@ class ToolContribAnlz:
 
     def v(self, mask, metric, gen):
         key = self.mask_to_key(mask)
-        return self.data[key][metric][str(gen)][0]  # 只用 mean
+        return self.data[key][metric][str(gen)][0]
 
     def shapley(self, metric, gen):
         n = len(self.TOOLS)

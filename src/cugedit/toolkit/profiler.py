@@ -91,10 +91,6 @@ class PerfTool(BaseTool):
         ncu_cmd = [
             "ncu",
             "-f",
-            "--target-processes",
-            "all",
-            "--set",
-            "full",
             "--nvtx",
             "--nvtx-include",
             cls._NVTX_ID,
@@ -102,4 +98,4 @@ class PerfTool(BaseTool):
             program_name,
         ] + ctx.cmd
 
-        return cls.run_with_report(ncu_cmd, report_path, cwd, env)
+        return cls.run_with_report(ncu_cmd, report_path, cwd, env, 100 * 60)

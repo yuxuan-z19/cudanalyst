@@ -99,5 +99,5 @@ class SanitizeTool(BaseTool):
                 "yes",
             ] + ctx.cmd
 
-            if res := cls.run_with_report(cs_cmd, report_path, cwd, env):
+            if res := cls.run_with_report(cs_cmd, report_path, cwd, env, 100 * 60):
                 return res

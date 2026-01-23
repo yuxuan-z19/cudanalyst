@@ -1,3 +1,4 @@
+import json
 import os
 import re
 import shutil
@@ -11,17 +12,23 @@ from robust_kbench.primitives.evaluate import (
     correct_cuda_kernel,
     eval_cuda_kernel,
     eval_torch_runtime,
+    prof_cuda_kernel,
 )
 
 from cugedit.helper import pick_idle_gpu
 from cugedit.helper.exec import ExecError, ExecFailReason, Stage
+from cugedit.module.chat import ChatConfig
+from cugedit.module.module import Module, Planner
+from cugedit.module.prompts import ANLZ_PROMPT
+from cugedit.pipeline.analysis import AnalysisPipe
+from cugedit.pipeline.config import AnalysisCfg
 from cugedit.result import *
+from cugedit.toolkit.base import ToolContext
 
 SUITE_ROOT = Path(__file__).parent / "robust_kbench"
 BASELINE_DIR = SUITE_ROOT / "highlighted"
 EVALUATOR = SUITE_ROOT / "run_kernel.py"
-# REPEAT_TIME = 10000
-REPEAT_TIME = 100
+REPEAT_TIME = 10000
 EVAL_KWARGS_BASE = dict(
     multi_init_settings=True,
     multi_input_settings=True,
@@ -81,16 +88,62 @@ def execute(program_path: Path, problem_dir: Path, eval_kwargs: dict[str, Any]):
     return RKbenchMeta(runtime=cuda_result["summary"]["avg_mean_time"])
 
 
+def gen_prof_report(
+    program_path: Path,
+    problem_dir: Path,
+    config: AnalysisCfg,
+    eval_kwargs: dict[str, Any],
+):
+    # * use prof_cuda_kernel() instead of CuGEdit
+    prof_results = prof_cuda_kernel(
+        program_path,
+        problem_dir,
+        ncu_prof=True,
+        clang_tidy=True,
+        **eval_kwargs,
+    )
+
+    ctx = ToolContext(program_path)
+    pipeline = AnalysisPipe(config)
+    analyzer, profiler = pipeline.pass_phases
+    planner = pipeline.planner
+
+    def make_report(tool: Module, key: str, enabled: bool, summarized: bool):
+        raw = prof_results.get(key)
+        if not enabled or not raw:
+            return None
+        fb_str = json.dumps(raw, ensure_ascii=False)
+        summary = tool._summarize(ctx, fb_str) if summarized else None
+        return Report(tool.name, fb_str, summary)
+
+    reports = []
+    if report := make_report(
+        config.perf_cfg.enabled, config.perf_cfg.summarized, profiler, "ncu"
+    ):
+        reports.append(report)
+    if report := make_report(
+        config.anlz_cfg.enabled, config.anlz_cfg.summarized, analyzer, "clang"
+    ):
+        reports.append(report)
+
+    plan = planner.run(ctx, reports)
+    return [plan, *reports]
+
+
 # * Reference: https://github.com/SakanaAI/robust-kbench/blob/main/run_kernel.py
 @return_asdict
-def evaluate(program_path: os.PathLike, problem_dir: os.PathLike):
-    program_path = Path(program_path)
+def evaluate(
+    program_path: os.PathLike,
+    problem_dir: os.PathLike,
+    config: AnalysisCfg = None,
+):
+    custom_program = Path(program_path)
     problem_dir = Path(problem_dir)
 
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp_dir = Path(tmpdir)
 
-        is_back = is_backward(program_path)
+        is_back = is_backward(custom_program)
         gpu_id = pick_idle_gpu()
         eval_kwargs = {**EVAL_KWARGS_BASE, "gpu_id": gpu_id, "forward": not is_back}
 
@@ -115,13 +168,16 @@ def evaluate(program_path: os.PathLike, problem_dir: os.PathLike):
         if base_result.status != Status.PASS:
             return RKbenchResult(status=base_result.status, error=base_result.error)
 
-        custom_result = execute(program_path, custom_dir, eval_kwargs)
+        custom_result = execute(custom_program, custom_dir, eval_kwargs)
         if custom_result.status != Status.PASS:
             return RKbenchResult(status=custom_result.status, error=custom_result.error)
 
         speedup = base_result.runtime / custom_result.runtime
+
+        reports = gen_prof_report(custom_program, custom_dir, eval_kwargs)
         return RKbenchResult(
             combined_score=speedup,
+            reports=reports,
             base_runtime=base_result.runtime,
             custom_runtime=custom_result.runtime,
             naive_runtime=naive_runtime,

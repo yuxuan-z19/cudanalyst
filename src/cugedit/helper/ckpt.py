@@ -5,7 +5,9 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
+from ..module.prompts import SYS_PROMPT
 from .exec import Status
+from .text import extract_codestr
 
 
 def drain_plans(metrics: dict[str, Any]):
@@ -22,7 +24,7 @@ def resolve_ckpt_dir(ckpt_dir: os.PathLike) -> Path:
 
 
 def iter_program_json(
-    ckpt_base: os.PathLike, subdir_name: str = None
+    ckpt_base: os.PathLike, subdir_name: str = None, filtered: bool = True
 ) -> Iterator[tuple[Path, dict]]:
     base = Path(ckpt_base)
     sample_pattern = f"{subdir_name}/*.json" if subdir_name else "**/*.json"
@@ -43,7 +45,7 @@ def iter_program_json(
             else:
                 sample_id = raw_id
 
-            if sample_id in seen_ids:
+            if filtered and sample_id in seen_ids:
                 continue
 
             seen_ids.add(sample_id)
@@ -100,7 +102,7 @@ def get_evolve_stats(
     return dict(sorted(stats.items()))
 
 
-def groupby_gen(src_ckpt_dir: os.PathLike, dst_gen_dir: os.PathLike) -> None:
+def group_oe_by_gen(src_ckpt_dir: os.PathLike, dst_gen_dir: os.PathLike):
     ckpt_base = resolve_ckpt_dir(src_ckpt_dir)
     if not ckpt_base.exists():
         raise FileNotFoundError(f"Source checkpoint directory not found: {ckpt_base}")
@@ -145,3 +147,69 @@ def groupby_gen(src_ckpt_dir: os.PathLike, dst_gen_dir: os.PathLike) -> None:
             count_saved += 1
 
     print(f"saved {count_saved} + skipped {count_skipped}")
+
+
+def build_llm4ad_sample(record: dict[str, Any]) -> dict[str, Any]:
+    raw_function: str = record["function"]
+    code = extract_codestr(raw_function)
+
+    parts = []
+    base_prompt = record.get("prompt")
+    if base_prompt:
+        parts.append(base_prompt.rstrip())
+
+    parts.append("# Program Evolution History")
+    parts.append(f"```python\n{raw_function.rstrip()}\n```")
+
+    usr_prompt = "\n\n".join(parts)
+
+    return {
+        "id": record["sample_order"],
+        "generation": record.get("generation", 0),
+        "code": code,
+        "score": record.get("score"),
+        "raw_function": raw_function,
+        "prompts": {
+            "full_rewrite_user": {
+                "system": SYS_PROMPT.sys,
+                "user": usr_prompt,
+            }
+        },
+    }
+
+
+def group_llm4ad_by_gen(src_sample_path: os.PathLike, dst_gen_dir: os.PathLike):
+    src_path = Path(src_sample_path).resolve()
+    if not src_path.exists():
+        raise FileNotFoundError(f"Source sample json file not found: {src_path}")
+
+    dst_base = Path(dst_gen_dir)
+    dst_base.mkdir(parents=True, exist_ok=True)
+
+    records: list[dict[str, Any]] = json.loads(src_path.read_text(encoding="utf-8"))
+
+    gen_to_samples = defaultdict(list)
+
+    for record in records:
+        try:
+            sample = build_llm4ad_sample(record)
+        except KeyError as e:
+            print(f"skip record due to missing field: {e}")
+            continue
+
+        gen_to_samples[sample["generation"]].append(sample)
+
+    count_saved = 0
+    for gen in sorted(gen_to_samples):
+        gen_dir = dst_base / f"gen{gen}"
+        gen_dir.mkdir(parents=True, exist_ok=True)
+
+        for idx, s in enumerate(gen_to_samples[gen]):
+            out_path = gen_dir / f"{s['id']}_{idx}.json"
+            out_path.write_text(
+                json.dumps(s, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            count_saved += 1
+
+    print(f"saved {count_saved} samples into {len(gen_to_samples)} generations")

@@ -342,7 +342,7 @@ int main(int argc, char** argv) {
     zeta = 0.0;
 
     setup_gpu();
-    nvtxRangePushA("cugedit");
+    // nvtxRangePushA("cugedit");
     timer_start(PROFILING_TOTAL_TIME);
 
     /*
@@ -385,7 +385,7 @@ int main(int argc, char** argv) {
      */
 
     t = timer_read(PROFILING_TOTAL_TIME);
-    nvtxRangePop();
+    // nvtxRangePop();
 
     // printf(" Benchmark completed\n");
 
@@ -416,6 +416,15 @@ int main(int argc, char** argv) {
     } else {
         mflops = 0.0;
     }
+
+    // ! only profile kernel once as trade-off
+    nvtxRangePushA("cugedit");
+    conj_grad_gpu(&rnorm);
+    gpu_kernel_ten(&norm_temp1, &norm_temp2);
+    norm_temp2 = 1.0 / sqrt(norm_temp2);
+    zeta = SHIFT + 1.0 / norm_temp1;
+    gpu_kernel_eleven(norm_temp2);
+    nvtxRangePop();
 
     // char gpu_config[256];
     // char gpu_config_string[2048];

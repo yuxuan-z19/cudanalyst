@@ -125,7 +125,6 @@ void doitgenCuda(int nr, int nq, int np,
               (unsigned int)ceil(((float)nr) / ((float)block.y)));
 
     /* Start timer. */
-    nvtxRangePushA("cugedit");
     polybench_start_instruments;
 
     for (int r = 0; r < nr; r++) {
@@ -139,10 +138,14 @@ void doitgenCuda(int nr, int nq, int np,
     printf("GPU_Seconds=");
     polybench_stop_instruments;
     polybench_print_instruments;
-    nvtxRangePop();
 
     cudaMemcpy(sum_outputFromGpu, sumGpu, NR * NQ * NP * sizeof(DATA_TYPE),
                cudaMemcpyDeviceToHost);
+
+    nvtxRangePushA("cugedit");
+    doitgen_kernel1<<<grid, block>>>(nr, nq, np, sumGpu, AGpu, C4Gpu, nr - 1);
+    doitgen_kernel2<<<grid, block>>>(nr, nq, np, sumGpu, AGpu, C4Gpu, nr - 1);
+    nvtxRangePop();
 
     cudaFree(AGpu);
     cudaFree(C4Gpu);

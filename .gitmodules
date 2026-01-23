@@ -8,3 +8,7 @@
 	path = eval/openevolve
 	url = https://github.com/yuxuan-z19/openevolve.git
 	branch = cugedit
+[submodule "eval/llm4ad"]
+	path = eval/llm4ad
+	url = https://github.com/yuxuan-z19/LLM4AD.git
+	branch = cugedit

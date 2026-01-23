@@ -294,6 +294,7 @@ out*
 test*
 log*
 *.json
+tmp*
 
 # polybench executables
 *.MINI

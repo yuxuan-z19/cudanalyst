@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 from matplotlib.colors import LinearSegmentedColormap
+from scipy.stats import t
 
 
 def plot_dist_per_run(runs):
@@ -90,32 +91,49 @@ def plot_dist_per_run(runs):
 
 def plot_gen_trajectory(
     means_list: list[list[list[float]]],
-    stds_list: list[list[list[float]]],
     config_labels: list[str],
     model_names: list[str],
+    stds_list: list[list[list[float]]] = None,
+    n_runs: int = 1,
     cmap: str = "Set1",
     markers: list[str] = None,
+    base_height: float = 1.5,
 ):
-    assert len(means_list) == 4
-    assert len(stds_list) == 4
-    assert len(model_names) == 4
+    num_models = len(model_names)
+    num_cols = 2
+    num_rows = (num_models + num_cols - 1) // num_cols
 
     num_configs = len(config_labels)
-    num_gens = len(means_list[0][0])
-    gens = np.arange(num_gens)
 
     colors = plt.get_cmap(cmap).colors[:num_configs]
     if markers is None:
         markers = ["o", "s", "^", "D", "*"][:num_configs]
 
-    fig, axes = plt.subplots(2, 2, figsize=(3.3, 3.3), sharex=True, sharey=True)
-    axes = axes.flatten()
+    if stds_list is not None:
+        t_crit = t.ppf(0.975, df=n_runs - 1)
 
-    for m_idx, ax in enumerate(axes):
+    fig, axes = plt.subplots(
+        num_rows,
+        num_cols,
+        figsize=(3.3, base_height * num_rows + 0.5),
+        sharex=True,
+        sharey=True,
+    )
+
+    if num_rows == 1:
+        axes = np.array([axes])
+    axes_flat = axes.flatten()
+
+    for m_idx in range(num_models):
+        ax = axes_flat[m_idx]
         means = np.asarray(means_list[m_idx])
-        stds = np.asarray(stds_list[m_idx])
+
+        if stds_list is not None:
+            stds = np.asarray(stds_list[m_idx])
+            ci_half = t_crit * stds / np.sqrt(n_runs)
 
         for c_idx in range(num_configs):
+            gens = np.arange(len(means[c_idx]))
             ax.plot(
                 gens,
                 means[c_idx],
@@ -125,30 +143,36 @@ def plot_gen_trajectory(
                 markersize=2.5,
                 markevery=2,
             )
-            ax.fill_between(
-                gens,
-                np.clip(means[c_idx] - stds[c_idx], 0, 1),
-                np.clip(means[c_idx] + stds[c_idx], 0, 1),
-                color=colors[c_idx],
-                alpha=0.22,
-                linewidth=0,
-            )
 
-        ax.set_title(model_names[m_idx], fontsize=6)
+            if stds_list is not None:
+                ax.fill_between(
+                    gens,
+                    np.clip(means[c_idx] - ci_half[c_idx], 0, 1),
+                    np.clip(means[c_idx] + ci_half[c_idx], 0, 1),
+                    color=colors[c_idx],
+                    alpha=0.22,
+                    linewidth=0,
+                )
+
+        ax.set_title(model_names[m_idx], fontsize=6, pad=5)
         ax.set_ylim(0, 1)
         ax.tick_params(axis="both", labelsize=6)
 
         for spine in ["top", "right"]:
             ax.spines[spine].set_visible(False)
 
+    for i in range(num_models, len(axes_flat)):
+        axes_flat[i].axis("off")
+
     fig.text(
-        0.03,
+        0.02,
         0.5,
         "Execution Success Rate",
         va="center",
         rotation="vertical",
         fontsize=6,
     )
+    fig.supxlabel("Generation", y=0.02, fontsize=6)
 
     handles = [
         plt.Line2D(
@@ -163,21 +187,23 @@ def plot_gen_trajectory(
         )
         for i in range(num_configs)
     ]
+
     fig.legend(
         handles,
         config_labels,
         loc="upper center",
-        bbox_to_anchor=(0.5, 1.02),
+        bbox_to_anchor=(0.5, 0.98),
         ncol=num_configs,
         frameon=False,
         fontsize=6,
+        columnspacing=0.8,
+        handletextpad=0.4,
     )
-
-    fig.supxlabel("Generation", y=0.005, fontsize=6)
 
     fig.subplots_adjust(
-        left=0.15, right=0.95, top=0.9, bottom=0.12, hspace=0.25, wspace=0.15
+        left=0.15, right=0.95, top=0.82, bottom=0.15, hspace=0.6, wspace=0.15
     )
+
     return fig
 
 

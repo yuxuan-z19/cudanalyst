@@ -41,5 +41,5 @@ class AnalysisPipe(Pipeline):
                     if r := fut.result():
                         reports.append(r)
 
-        planner_report = self.planner.run(ctx, reports)
-        return [planner_report, *reports]
+        plan = self.planner.run(ctx, reports)
+        return [plan, *reports]
