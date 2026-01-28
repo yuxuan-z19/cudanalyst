@@ -98,6 +98,7 @@ def plot_gen_trajectory(
     cmap: str = "Set1",
     markers: list[str] = None,
     base_height: float = 1.5,
+    label="Execution Success Rate",
 ):
     num_models = len(model_names)
     num_cols = 2
@@ -167,7 +168,7 @@ def plot_gen_trajectory(
     fig.text(
         0.02,
         0.5,
-        "Execution Success Rate",
+        label,
         va="center",
         rotation="vertical",
         fontsize=6,

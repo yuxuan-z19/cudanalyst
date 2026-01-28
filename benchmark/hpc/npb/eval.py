@@ -4,11 +4,11 @@ import string
 import tempfile
 from pathlib import Path
 
-from cugedit import AnalysisCfg, ToolContext, planning
-from cugedit.helper import *
-from cugedit.helper.stat import stats_med
-from cugedit.helper.text import extract_codeblock
-from cugedit.result import *
+from cudanalyst import AnalysisCfg, ToolContext, planning
+from cudanalyst.helper import *
+from cudanalyst.helper.stat import stats_med
+from cudanalyst.helper.text import extract_codeblock
+from cudanalyst.result import *
 
 SUITE_ROOT = Path(__file__).parent / "src"
 COMMON_INC_DIRS = ["common", "config", "sys", "Makefile"]

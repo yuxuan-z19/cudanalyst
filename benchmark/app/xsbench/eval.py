@@ -4,11 +4,11 @@ import shutil
 import tempfile
 from pathlib import Path
 
-from cugedit import AnalysisCfg, ToolContext, planning
-from cugedit.helper import *
-from cugedit.helper.stat import stats_med
-from cugedit.helper.text import extract_codeblock
-from cugedit.result import *
+from cudanalyst import AnalysisCfg, ToolContext, planning
+from cudanalyst.helper import *
+from cudanalyst.helper.stat import stats_med
+from cudanalyst.helper.text import extract_codeblock
+from cudanalyst.result import *
 
 NITER = 4
 TIMEOUT = 5 * 60  # 5 min

@@ -13,8 +13,8 @@ from kernelbench.src.eval import (
     load_original_model_and_inputs,
 )
 
-from cugedit.helper import pick_idle_gpu
-from cugedit.result import Result, return_asdict
+from cudanalyst.helper import pick_idle_gpu
+from cudanalyst.result import Result, return_asdict
 
 
 @dataclass

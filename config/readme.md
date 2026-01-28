@@ -40,18 +40,24 @@ class Service:
 ## Usage
 
 ```python
-from src.prompter import Configurer
+import asyncio
+from pathlib import Path
 
-# Load the "analyst" configuration
-config = Configurer("./config/keyset.yml", "analyst")
+from cudanalyst.module.chat import ChatConfig, ChatSession
 
-# Assess the first "analyst" candidate
-service = config.candidates[0]
-print(service.api.url)
-print(service.api.timeout)
-print(service.api.run_once)
+keyset_pth = Path(__file__).parent.parent / "config/keyset.yml"
+service = ChatConfig(keyset_pth)[0]
+print(service)
 
-# Ask in batch
-client = Prompter(config.candidates[0], "You are a helpful assistant.")
-replies = await client.ask("What is 6 * 7?", n_attempt=3, n_sol=4)
+# sync
+session = ChatSession(service, "You are a helpful assistant.")
+ans = session.ask("What is your name?")
+print(ans)
+
+# async
+async def test_async(session: ChatSession):
+    ans = await session.ask_async("What is your name?")
+    print(ans)
+
+asyncio.run(test_async(session))
 ```

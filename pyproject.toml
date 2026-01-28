@@ -1,7 +1,7 @@
 [project]
-name = "cugedit"
-version = "0.0.0"
-description = "CuGEdit"
+name = "cudanalyst"
+version = "0.1.0"
+description = "Analysis layer for generation-level interventions in self-evolving LLM agents for CUDA kernel generation, enabling interpretable feedback-to-plan attribution."
 readme = "readme.md"
 authors = [{ name = "yuxuan-z", email = "yuxuan-z19@qq.com" }]
 requires-python = ">=3.10"

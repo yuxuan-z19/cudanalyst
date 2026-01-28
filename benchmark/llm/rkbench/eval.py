@@ -15,15 +15,15 @@ from robust_kbench.primitives.evaluate import (
     prof_cuda_kernel,
 )
 
-from cugedit.helper import pick_idle_gpu
-from cugedit.helper.exec import ExecError, ExecFailReason, Stage
-from cugedit.module.chat import ChatConfig
-from cugedit.module.module import Module, Planner
-from cugedit.module.prompts import ANLZ_PROMPT
-from cugedit.pipeline.analysis import AnalysisPipe
-from cugedit.pipeline.config import AnalysisCfg
-from cugedit.result import *
-from cugedit.toolkit.base import ToolContext
+from cudanalyst.helper import pick_idle_gpu
+from cudanalyst.helper.exec import ExecError, ExecFailReason, Stage
+from cudanalyst.module.chat import ChatConfig
+from cudanalyst.module.module import Module, Planner
+from cudanalyst.module.prompts import ANLZ_PROMPT
+from cudanalyst.pipeline.analysis import AnalysisPipe
+from cudanalyst.pipeline.config import AnalysisCfg
+from cudanalyst.result import *
+from cudanalyst.toolkit.base import ToolContext
 
 SUITE_ROOT = Path(__file__).parent / "robust_kbench"
 BASELINE_DIR = SUITE_ROOT / "highlighted"

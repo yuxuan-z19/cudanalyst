@@ -1,6 +1,6 @@
 # Evaluation
 
-We conduct a generalization study on the following open-source self-evolving agents. Our fork's default branch (`cugedit`) is continuously synchronized with the upstream `main` branch. All fork-specific changes (listed in reverse chronological order) that may affect agent behavior are explicitly documented below for reproducibility.
+We conduct a generalization study on the following open-source self-evolving agents. Our fork's default branch (`cudanalyst`) is continuously synchronized with the upstream `main` branch. All fork-specific changes (listed in reverse chronological order) that may affect agent behavior are explicitly documented below for reproducibility.
 
 Scripts and configs are provided at `./config` and `./scripts` respectively
 
@@ -34,7 +34,7 @@ Scripts and configs are provided at `./config` and `./scripts` respectively
 }
 ```
 
-- Commit [3df365b](https://github.com/yuxuan-z19/openevolve/commit/3df365b): Render plan decisions as artifacts
+- Commit [d609ff8](https://github.com/yuxuan-z19/openevolve/commit/d609ff8): Render plan decisions as artifacts
 - Commit [df9fb3c](https://github.com/yuxuan-z19/openevolve/commit/df9fb3c): Add `analyst_config` in `EvaluatorConfig`
 - Commit [d09052b](https://github.com/yuxuan-z19/openevolve/commit/d09052b): Add `problem_dir` in `EvaluatorConfig`
 
