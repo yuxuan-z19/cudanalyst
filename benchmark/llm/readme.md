@@ -1,4 +1,4 @@
-# LLM Code Generation Benchmarks
+# Benchmarks for LLM-Generated CUDA Kernels
 
 ## KernelBench (kbench)
 

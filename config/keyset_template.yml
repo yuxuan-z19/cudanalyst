@@ -5,4 +5,4 @@ api_base: "http://xxx.yyy.zzz"
 api_key: "zzzzzzzz"
 timeout: 65536
 max_tokens: 32768
-stream: true
+stream: false

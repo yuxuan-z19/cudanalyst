@@ -12,6 +12,7 @@ main:
   api_key: "zzzzzzzz"
   timeout: 65536
   max_tokens: 32768
+  stream: false
 ```
 
 - `candidates`: List of candidate model IDs (e.g., gpt-4, qwen-max).
@@ -19,6 +20,7 @@ main:
 - `api_key`: Authorization key for accessing the service.
 - `timeout`: Request timeout (in seconds).
 - `max_tokens`: Maximum number of tokens to generate.
+- `stream`: Enable explicitly the streaming mode, default to `false`.
 
 `main` is an example service partition. You can freely define other names depending on your use case.
 
