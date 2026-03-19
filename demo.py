@@ -10,7 +10,8 @@ from cudanalyst.module.config import ModuleBits
 from cudanalyst.pipeline.config import AnalysisMask
 from cudanalyst.workflow import intervene_async
 
-CONFIG_FILE = Path("./config/keyset_v32.yml")
+# TODO: change to your own keyset
+CONFIG_FILE = Path("./config/keyset_template.yml")
 
 # ^ OpenEvolve-based trajectory
 # ? path to the OpenEvolve output checkpoints
@@ -47,7 +48,7 @@ MASK_LIST = {
 def work():
     problem_dir = Path("benchmark/hpc/npb/src/CG")
     output_root = Path("gen/npb-CG")
-    for name, mask in MASK_LIST:
+    for name, mask in MASK_LIST.items():
         print(f"Running analysis mode: {name}")
         res_list = asyncio.run(
             intervene_async(

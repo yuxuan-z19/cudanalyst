@@ -252,9 +252,14 @@ See `demo.py` for a minimal example.
 
     Can be used for calculating pass@$k$ and plotting generation-level curves.
 
+6. We provide `ReplayPipeAsync` (`ReplayPipe`) to replay previously generated intervention plans for plan distillation experiments. In the `intervene_async()`/`intervene_async_multi()` (`intervene_sync()`):
+    - Set `input_ckpt_dir` to the intervention result directory
+    - Set `replay=True`
+
 #### Known Issues
 
 - Grouping may overwrite early attempts if a program sample is invoked multiple times during the evolution.
+- We focus on how feedback-to-plan decisions are made under a fixed context (static assessment). Support for short-horizon, memory-aware evaluation is planned for future work.
 
 ### DIY Evaluator
 

@@ -15,7 +15,7 @@ from robust_kbench.primitives.evaluate import (
     prof_cuda_kernel,
 )
 
-from cudanalyst.helper import pick_idle_gpu
+from cudanalyst.helper import pick_idle_gpu, tqdm
 from cudanalyst.helper.exec import ExecError, ExecFailReason, Stage
 from cudanalyst.module.chat import ChatConfig
 from cudanalyst.module.module import Module, Planner
@@ -188,8 +188,6 @@ def evaluate(
 if __name__ == "__main__":
     import time
     from pprint import pprint
-
-    from tqdm.rich import tqdm
 
     workload_list = []
     for dirpath, _, filenames in os.walk(BASELINE_DIR):

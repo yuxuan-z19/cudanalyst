@@ -231,8 +231,6 @@ if __name__ == "__main__":
     import time
     from pprint import pprint
 
-    from tqdm.rich import tqdm
-
     for workload_name in tqdm(os.listdir(SRC_DIR)):
         workload_path = SRC_DIR / workload_name
         init_kernel_path = workload_path / "sol.init.cu"

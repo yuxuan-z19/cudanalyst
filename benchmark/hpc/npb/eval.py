@@ -18,7 +18,8 @@ TEST_TIMEOUT = 5 * 60  # 5 min
 EVAL_TIMEOUT = 15 * 60  # 15 min
 
 TEST_CLASS = ["S", "W"]
-EVAL_CLASS = list(string.ascii_uppercase[:3])
+# EVAL_CLASS = list(string.ascii_uppercase[:3])
+EVAL_CLASS = ["A"]
 
 NUM_RUNS = 10
 
@@ -212,8 +213,6 @@ def evaluate(
 if __name__ == "__main__":
     import time
     from pprint import pprint
-
-    from tqdm.rich import tqdm
 
     workload_list = [
         p.name

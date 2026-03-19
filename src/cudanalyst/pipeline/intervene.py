@@ -11,8 +11,8 @@ from pathlib import Path
 from typing import Any, override
 
 from tqdm.asyncio import tqdm_asyncio
-from tqdm.rich import tqdm
 
+from ..helper import tqdm
 from ..helper.ckpt import iter_program_json
 from ..helper.exec import Status
 from ..helper.text import extract_codeblock, is_valid_str

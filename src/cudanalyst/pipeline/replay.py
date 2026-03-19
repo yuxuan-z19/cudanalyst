@@ -15,7 +15,7 @@ class ReplayPipe(IntervenePipe):
         return PromptCtx(record.id, record.prompt, record.old_profile, record.reports)
 
     @override
-    async def build_all_contexts(self, input_ckpt_dir, concurrency=8):
+    async def build_all_contexts(self, input_ckpt_dir: os.PathLike, concurrency=8):
         contexts = []
         for _, data in iter_program_json(input_ckpt_dir):
             contexts.append(self._record_to_ctx(data))
