@@ -1,10 +1,38 @@
-# CUDAnalyst
+# [ICML2026] Towards Feedback-to-Plan Decisions for Self-Evolving LLM Agents in CUDA Kernel Generation
 
-**CUDAnalyst** (CUDA + Analyst) is a unified analysis layer designed for controlled, generation-level attribution of planning decisions in self-evolving LLM agents for CUDA kernel generation. It decouples feedback from planning and enables principled evaluation of how heterogeneous feedback signals shape planning trajectories.
+**CUDAnalyst** (CUDA + Analyst) is an analysis framework for studying how self-evolving LLM agents make planning decisions during CUDA kernel generation.
 
 ## Motivation
 
-Large language models (LLMs) can act as self-evolving agents for CUDA kernel generation, guided by feedback-conditioned planning. However, the internal mechanisms by which feedback signals are combined and propagated across planning steps remain opaque. Standard end-to-end ablations often fail to disambiguate these effects. CUDAnalyst addresses this gap by providing an intervention-based, interpretable analysis framework.
+Rather than treating agent execution as a monolithic end-to-end process, where trajectory drift makes controlled attribution difficult, CUDAnalyst decouples *feedback acquisition* from *planning generation*, enabling controlled intervention and generation-level attribution across iterative optimization trajectories.
+
+<img src="./assets/imgs/demo_drift.png" height="420"/>
+
+## Introduction
+
+The framework supports principled evaluation of heterogeneous feedback signals, including correctness (Debugger), static analysis (Analyzer) , and runtime performace (Profiler), and measures how each signal substrate influences subsequent planning behavior (PlanAgent).
+
+<img src="./assets/imgs/design.png" width="640"/>
+
+To support scalable experimentation, CUDAnalyst adopts a sample-centric, event-driven execution architecture with concurrent pipelined evaluation, namely IntervenePipe.
+
+<table id="example-table">
+  <tbody>
+    <tr>
+    </tr>
+    <tr>
+        <td width="40%" valign="center">
+        <img src="./assets/imgs/intervene_design.png" height="480"/>
+        </td>
+        <td width="60%" align="center" valign="center">
+        <img src="./assets/imgs/intervene_timeline.png" width="420"/>
+        </br>
+        <img src="./assets/imgs/demo_throughput.png" width="420"/>
+        </td>
+    </tr>
+  </tbody>
+</table>
+
 
 ## Installation
 
@@ -258,7 +286,6 @@ See `demo.py` for a minimal example.
 
 #### Known Issues
 
-- Grouping may overwrite early attempts if a program sample is invoked multiple times during the evolution.
 - We focus on how feedback-to-plan decisions are made under a fixed context (static assessment). Support for short-horizon, memory-aware evaluation is planned for future work.
 
 ### DIY Evaluator
@@ -403,3 +430,21 @@ pre-commit install # enable pre-commit hooks for code style
 ```
 
 After this, any committed code will automatically be checked and formatted according to the project's standards.
+
+## Citation
+
+If you find this project useful, please consider citing:
+
+```bibtex
+% to be updated
+@inproceedings{anonymous2026towards,
+    title        = {
+        Towards Feedback-to-Plan Decisions for Self-Evolving {LLM} Agents in
+        {CUDA} Kernel Generation
+    },
+    author       = {Anonymous},
+    year         = 2026,
+    booktitle    = {Forty-third International Conference on Machine Learning},
+    url          = {https://openreview.net/forum?id=s70zO5Lvvj}
+}
+```

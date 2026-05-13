@@ -18,12 +18,10 @@ CONFIG_FILE = Path("./config/keyset_template.yml")
 SRC_CKPT_DIR = Path("./out/npb-CG/checkpoints")
 # ? path to keep the generation-level samples
 DST_GEN_DIR = Path("./tmp/npb-CG")
-group_oe_by_gen(SRC_CKPT_DIR, DST_GEN_DIR)
 
 # ^ LLM4AD-based trajectory
 # SRC_SAMPLE_RECORD = Path("./out/eoh-3MM/samples/samples_1~200.json")
 # DST_GEN_DIR = Path("./tmp/eoh-3MM")
-# group_llm4ad_by_gen(SRC_SAMPLE_RECORD, DST_GEN_DIR)
 
 MASK_LIST = {
     # ? Plan only (P)
@@ -70,4 +68,6 @@ def work():
 
 
 if __name__ == "__main__":
+    group_oe_by_gen(SRC_CKPT_DIR, DST_GEN_DIR)
+    # group_llm4ad_by_gen(SRC_SAMPLE_RECORD, DST_GEN_DIR)
     work()

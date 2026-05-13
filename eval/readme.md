@@ -2,7 +2,7 @@
 
 We conduct a generalization study on the following open-source self-evolving agents. Our fork's default branch (`cudanalyst`) is continuously synchronized with the upstream `main` branch. All fork-specific changes (listed in reverse chronological order) that may affect agent behavior are explicitly documented below for reproducibility.
 
-Scripts and configs are provided at `./config` and `./scripts` respectively
+Configs and example scripts are provided at `./config` and `./demo` respectively.
 
 ## OpenEvolve (openevolve)
 

@@ -5,7 +5,7 @@ A curated collection of CUDA benchmarks for testing, performance evaluation, and
 ```bash
 cudanalyst/benchmark
 ├── app   # CUDA Mini-Apps for small-scale testing
-├── cgo   # Benchmarks for DSLs and compiler-generated kernels
+├── cgo   # Benchmarks for DSLs and compilers
 ├── hpc   # High-Performance Computing (HPC) benchmarks
 ├── llm   # Benchmarks for LLM-generated CUDA kernels
 └── readme.md

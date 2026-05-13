@@ -110,8 +110,8 @@ def group_oe_by_gen(src_ckpt_dir: os.PathLike, dst_gen_dir: os.PathLike):
     dst_base = Path(dst_gen_dir)
     dst_base.mkdir(parents=True, exist_ok=True)
 
-    id_to_prompts = {}
-    gen_to_samples = defaultdict(list)
+    id_to_prompt_lists: dict[str, list[str]] = defaultdict(list)
+    gen_to_samples: dict[str, list[dict]] = defaultdict(list)
 
     for _, data in iter_program_json(ckpt_base):
         gen = data.get("generation", 0)
@@ -119,7 +119,7 @@ def group_oe_by_gen(src_ckpt_dir: os.PathLike, dst_gen_dir: os.PathLike):
         parent_id = data.get("parent_id")
 
         if parent_id and "prompts" in data:
-            id_to_prompts[parent_id] = data["prompts"]
+            id_to_prompt_lists[parent_id].append(data["prompts"])
 
         gen_to_samples[gen].append(data)
 
@@ -128,23 +128,24 @@ def group_oe_by_gen(src_ckpt_dir: os.PathLike, dst_gen_dir: os.PathLike):
 
     for gen, samples in gen_to_samples.items():
         gen_folder = dst_base / f"gen{gen}"
+        gen_folder.mkdir(parents=True, exist_ok=True)
 
         for data in samples:
             sample_id = data.get("id")
-
-            if sample_id not in id_to_prompts:
+            if sample_id not in id_to_prompt_lists:
                 count_skipped += 1
                 continue
 
-            data["prompts"] = id_to_prompts[sample_id]
+            prompt_lists = id_to_prompt_lists[sample_id]
+            for idx, prompts in enumerate(prompt_lists):
+                new_data = data.copy()
+                new_data["prompts"] = prompts
 
-            gen_folder.mkdir(parents=True, exist_ok=True)
-
-            output_path = gen_folder / f"{sample_id}.json"
-            output_path.write_text(
-                json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
-            )
-            count_saved += 1
+                output_path = gen_folder / f"{sample_id}_{idx}.json"
+                output_path.write_text(
+                    json.dumps(new_data, ensure_ascii=False, indent=2), encoding="utf-8"
+                )
+                count_saved += 1
 
     print(f"saved {count_saved} + skipped {count_skipped}")
 
