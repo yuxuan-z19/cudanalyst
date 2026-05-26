@@ -1,6 +1,8 @@
 # [ICML2026] Towards Feedback-to-Plan Decisions for Self-Evolving LLM Agents in CUDA Kernel Generation
 
-**CUDAnalyst** (CUDA + Analyst) is an analysis framework for studying how self-evolving LLM agents make planning decisions during CUDA kernel generation.
+**CUDAnalyst** (CUDA + Analyst) is an analysis framework for studying how self-evolving LLM agents make planning decisions during CUDA kernel generation. Based on CUDAnalyst, we perform generation-level feedback interventions in self-evolving LLM agents for CUDA kernels, attributing contributions of feedback signals to plan decisions.
+
+![overview](./assets/imgs/poster.png)
 
 ## Motivation
 
