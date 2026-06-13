@@ -4,9 +4,17 @@
 
 ![overview](./assets/imgs/poster.png)
 
+For a quick overview on this work, please check out the [5-min note (in Chinese)](https://papernotes.org/ICML2026/llm_agent/towards_feedback-to-plan_decisions_for_self-evolving_llm_agents_in_cuda_kernel_g).
+
 ## Motivation
 
-Rather than treating agent execution as a monolithic end-to-end process, where trajectory drift makes controlled attribution difficult, CUDAnalyst decouples *feedback acquisition* from *planning generation*, enabling controlled intervention and generation-level attribution across iterative optimization trajectories.
+Our study on self-evolving LLM agents begins with a simple question under a clear yet challenging setting (i.e. HPC kernel optimization): 
+
+> **How do different feedback signals shape the planning decisions of self-evolving LLM agents in code generation?**
+
+End-to-end ablations are genuinely unreliable in iterative self-evolving systems, and prior work in this space has largely ignored the confound.
+
+Rather than treating agent execution as a monolithic process, where trajectory drift makes controlled attribution difficult, CUDAnalyst decouples *feedback acquisition* from *planning generation*, enabling controlled intervention and generation-level attribution across iterative optimization trajectories.
 
 <img src="./assets/imgs/demo_drift.png" height="420"/>
 
@@ -34,7 +42,6 @@ To support scalable experimentation, CUDAnalyst adopts a sample-centric, event-d
     </tr>
   </tbody>
 </table>
-
 
 ## Installation
 
@@ -282,7 +289,7 @@ See `demo.py` for a minimal example.
 
     Can be used for calculating pass@$k$ and plotting generation-level curves.
 
-6. We provide `ReplayPipeAsync` (`ReplayPipe`) to replay previously generated intervention plans for plan distillation experiments. In the `intervene_async()`/`intervene_async_multi()` (`intervene_sync()`):
+6. We provide `ReplayPipeAsync` (`ReplayPipe`) to *replay* previously generated intervention plans for plan distillation experiments. In the `intervene_async()`/`intervene_async_multi()` (`intervene_sync()`):
     - Set `input_ckpt_dir` to the intervention result directory
     - Set `replay=True`
 
@@ -344,7 +351,7 @@ def evaluate(program_path: os.PathLike, problem_dir: os.PathLike, config: Analys
 
 #### 2. Integrate CUDAnalyst
 
-You can plug CUDAnalyst into your evaluator via planning():
+You can plug CUDAnalyst into your evaluator via `planning()`:
 
 ```python
 from cudanalyst import AnalysisCfg, ToolContext, planning
@@ -418,7 +425,7 @@ Two options:
 
 ## Contributing
 
-We welcome contributions, especially for porting existing CUDA benchmarks or adding new agentic frameworks and analysis pipelines.
+We welcome contributions, especially for [porting existing CUDA benchmarks](./benchmark/readme.md#contributing) or adding new agentic frameworks and analysis pipelines.
 
 ### Development Setup
 
@@ -438,15 +445,17 @@ After this, any committed code will automatically be checked and formatted accor
 If you find this project useful, please consider citing:
 
 ```bibtex
-% to be updated
-@inproceedings{anonymous2026towards,
+% OpenReview entry would be added after the conference. For now, please cite the arXiv preprint:
+@misc{cudanalyst,
     title        = {
-        Towards Feedback-to-Plan Decisions for Self-Evolving {LLM} Agents in
-        {CUDA} Kernel Generation
+        Towards Feedback-to-Plan Decisions for Self-Evolving LLM Agents in CUDA
+        Kernel Generation
     },
-    author       = {Anonymous},
+    author       = {Yee Hin Chong and Jiaming Wu and Youhui Zhang and Peng Qu},
     year         = 2026,
-    booktitle    = {Forty-third International Conference on Machine Learning},
-    url          = {https://openreview.net/forum?id=s70zO5Lvvj}
+    url          = {https://arxiv.org/abs/2605.26720},
+    eprint       = {2605.26720},
+    archiveprefix = {arXiv},
+    primaryclass = {cs.AI}
 }
 ```
