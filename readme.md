@@ -445,17 +445,14 @@ After this, any committed code will automatically be checked and formatted accor
 If you find this project useful, please consider citing:
 
 ```bibtex
-% OpenReview entry would be added after the conference. For now, please cite the arXiv preprint:
-@misc{cudanalyst,
+@inproceedings{chong2026towards,
     title        = {
-        Towards Feedback-to-Plan Decisions for Self-Evolving LLM Agents in CUDA
-        Kernel Generation
+        Towards Feedback-to-Plan Decisions for Self-Evolving {LLM} Agents in
+        {CUDA} Kernel Generation
     },
     author       = {Yee Hin Chong and Jiaming Wu and Youhui Zhang and Peng Qu},
     year         = 2026,
-    url          = {https://arxiv.org/abs/2605.26720},
-    eprint       = {2605.26720},
-    archiveprefix = {arXiv},
-    primaryclass = {cs.AI}
+    booktitle    = {Forty-third International Conference on Machine Learning},
+    url          = {https://openreview.net/forum?id=s70zO5Lvvj}
 }
 ```
